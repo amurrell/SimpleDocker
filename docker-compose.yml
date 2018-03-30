@@ -1,0 +1,18 @@
+version: '2'
+services:
+    web:
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        ports:
+            - "3090:80"
+        volumes:
+            - ./:/var/www/simple-docker
+        expose:
+            - "80"
+        networks:
+            - dlocal-net
+        
+networks:
+  dlocal-net:
+    driver: bridge

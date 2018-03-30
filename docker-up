@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+sudo docker-compose -p "dockerlocal3090" up --build -d
+printf "This simple docker does not have a webserver, but if you did install & configure one, you'd see your site here: http://localhost:3090\n"
+printf "If you want to SSH: ./docker-ssh\n"

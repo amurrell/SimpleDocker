@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+## SSH into web as root
+sudo docker exec -t -i "dockerlocal3090"_web_1 /bin/bash
+exit 1
