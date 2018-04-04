@@ -8,6 +8,10 @@ MAINTAINER Angela Murrell
 RUN         apt-get update && \
             apt-get install -y nano && \
             apt-get install -y curl && \
+            apt-get install -y sudo && \
+            apt-get install -y wget && \
+            apt-get install -y unzip && \
+            apt-get install -y ufw && \
             apt-get clean && \
             rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
