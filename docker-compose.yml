@@ -7,7 +7,7 @@ services:
         ports:
             - "3090:80"
         volumes:
-            - ../:/var/www/LEMP-setup-guide
+            - ./:/var/www/simple-docker
             - ~/.ssh:/root/tempssh
         expose:
             - "80"
