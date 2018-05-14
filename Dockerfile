@@ -12,6 +12,10 @@ RUN         apt-get update && \
             apt-get install -y wget && \
             apt-get install -y unzip && \
             apt-get install -y ufw && \
+            apt-get install -y apt-utils && \
+            apt-get install -y software-properties-common && \
+            apt-get install -y openssh-client && \
+	        apt-get install -y python-software-properties && \
             apt-get clean && \
             rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
@@ -25,6 +29,9 @@ ENV TERM xterm
 
 # Set workdir
 WORKDIR /var/www/
+
+# SSH
+RUN mkdir /root/.ssh
 
 # Add site directory
 RUN mkdir /var/www/simple-docker
