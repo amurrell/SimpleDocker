@@ -2,9 +2,8 @@
 FROM        ubuntu:18.04
 
 # File Author / Maintainer
-MAINTAINER Angela Murrell
+LABEL maintainer="Angela Murrell"
 
-# Update the repository and install nginx and php7.0
 RUN         apt-get update && \
   apt-get install -y nano && \
   apt-get install -y curl && \
@@ -15,6 +14,14 @@ RUN         apt-get update && \
 RUN	apt-get update && \
   apt-get -y install libcurl3-openssl-dev && \
   apt-get -y install libyaml-dev
+
+# Be able to use sudo
+RUN apt-get update && \
+  apt-get -y install sudo
+
+RUN useradd -m docker && echo "docker:docker" | chpasswd && adduser docker sudo
+
+USER docker
 
 # export var for nano to work in command line
 ENV TERM xterm
