@@ -1,20 +1,20 @@
-# Set the base image to ubuntu:16.04
-FROM        ubuntu:16.04
+# Set the base image to ubuntu:18.04
+FROM        ubuntu:18.04
 
 # File Author / Maintainer
 MAINTAINER Angela Murrell
 
 # Update the repository and install nginx and php7.0
 RUN         apt-get update && \
-            apt-get install -y nano && \
-            apt-get install -y curl && \
-            apt-get clean && \
-            rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+  apt-get install -y nano && \
+  apt-get install -y curl && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
 # Install more stuff
 RUN	apt-get update && \
-	apt-get -y install libcurl3-openssl-dev && \
-	apt-get -y install libyaml-dev
+  apt-get -y install libcurl3-openssl-dev && \
+  apt-get -y install libyaml-dev
 
 # export var for nano to work in command line
 ENV TERM xterm
