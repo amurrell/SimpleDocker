@@ -19,9 +19,7 @@ RUN	apt-get update && \
 RUN apt-get update && \
   apt-get -y install sudo
 
-RUN useradd -m docker && echo "docker:docker" | chpasswd && adduser docker sudo
-
-USER docker
+RUN adduser www-data sudo
 
 # export var for nano to work in command line
 ENV TERM xterm
