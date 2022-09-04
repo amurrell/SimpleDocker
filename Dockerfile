@@ -2,20 +2,27 @@
 FROM        ubuntu:20.04
 
 # File Author / Maintainer
-LABEL maintainer="amasiell.g@gmail.com"
+LABEL maintainer="Angela Murrell <me@angelamurrell.com>"
+
+# Update the repository and install nginx and php7.4
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Update the repository and install nginx and php7.0
-RUN         apt-get update && \
+RUN apt-get update && \
   apt-get install -y nano && \
   apt-get install -y curl && \
   apt-get install -y sudo && \
   apt-get install -y wget && \
+  apt-get install -y git && \
   apt-get install -y unzip && \
+  apt-get install -y ruby-full && \
   apt-get install -y ufw && \
   apt-get install -y apt-utils && \
   apt-get install -y software-properties-common && \
+  apt-get install -y apt-transport-https && \
   apt-get install -y openssh-client && \
-  apt-get install -y python-software-properties && \
+  apt-get -y --no-install-recommends install apt-utils && \
+	apt-get -y install freetds-bin tdsodbc unixodbc unixodbc-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
