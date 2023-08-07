@@ -1,13 +1,13 @@
-# Set the base image to ubuntu:16.04
-FROM        ubuntu:20.04
+# Set the base image to ubuntu:xx.xx
+FROM ubuntu:20.04
 
 # File Author / Maintainer
 LABEL maintainer="Angela Murrell <me@angelamurrell.com>"
 
-# Update the repository and install nginx and php7.4
+# Important for automated runs
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update the repository and install nginx and php7.0
+# Basic packages and tools - for cloud servers, do not depend on these being available.
 RUN apt-get update && \
   apt-get install -y nano && \
   apt-get install -y curl && \
@@ -43,10 +43,16 @@ RUN mkdir /root/.ssh
 # Add site directory
 RUN mkdir /var/www/simple-docker
 
+# Add all the files
+ADD ./pre-run/ /var/www/simple-docker/pre-run/
+
 # Append source brc alias to the bashrc profile file
 RUN echo 'alias brc="source /root/.bashrc"' >> /root/.bashrc
 
 # Adjust www-data
 RUN usermod -u 1000 www-data
+
+# Run the pre-run-wrapper
+RUN ./simple-docker/pre-run/pre-run-wrapper
 
 CMD sleep infinity

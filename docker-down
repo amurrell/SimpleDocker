@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-sudo docker-compose -p "dockerlocal3090" down
+docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml down

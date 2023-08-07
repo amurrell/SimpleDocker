@@ -1,5 +1,80 @@
 #!/usr/bin/env bash
 
-sudo docker-compose -p "dockerlocal3090" up --build -d
-printf "This simple docker does not have a webserver, but if you did install & configure one, you'd see your site here: http://localhost:3090\n"
-printf "If you want to SSH: ./docker-ssh\n"
+# Vars
+UBUNTU_VERSION=$(<ubuntu-version)
+if [ -f "ubuntu-version-override" ]; then
+    UBUNTU_VERSION=$(<ubuntu-version-override)
+fi
+
+# Config Files
+
+## DockerFile-Template -> Dockerfile-Computed if does not exist
+if [ ! -f Dockerfile-Computed ]; then
+    cp Dockerfile-Template Dockerfile-Computed
+fi
+
+## docker-compose-template.yml -> docker-compose-computed.yml if does not exist
+if [ ! -f docker-compose-computed.yml ]; then
+    cp docker-compose-template.yml docker-compose-computed.yml
+fi
+
+## Replace "FROM ubuntu:xx.xx" with FROM ubuntu:$UBUNTU_VERSION in Dockerfile-Computed where each x is any single digit
+sed -i '' "s/FROM ubuntu:[1-9][0-9]\.[0-9][0-9]/FROM ubuntu:$UBUNTU_VERSION/g" Dockerfile-Computed
+
+
+# if pre-run does not exist, then copy the default
+if [ ! -f pre-run/pre-run ]; then
+    cp pre-run/pre-run-default pre-run/pre-run
+fi
+
+H=$(sed -e 's#.*\-h=\([^[:space:]]*\?\).*#\1#' <<< "$*")
+C=$(sed -e 's#.*\-c=\([^[:space:]]*\?\).*#\1#' <<< "$*")
+D=$(sed -e 's#.*\-d=\([^[:space:]]*\?\).*#\1#' <<< "$*")
+
+if [ "$H" == "-h" ]; then
+    printf "Use -c to specify building with no-cache eg. -c=true; default is false\n"
+    printf "Use -d to specify building with no-cache & verbosely eg. -d=true; default is false\n"
+    exit 1;
+fi
+
+# if -c=true, then build with no-cache
+if [ "$C" == "-c=true" ]; then
+    printf "============ Docker Build - with forcing re-cache\n"
+    docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml build --no-cache
+elif [ "$D" == "-d=true" ]; then
+    printf "============ Docker Pull\n"
+    docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml build --no-cache --progress=plain 
+fi
+
+printf "============ Docker Build\n"
+docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml up --build -d
+
+status=$?
+if [ $status -eq 0 ]; then
+    printf "============= ✅ Docker is running!\n"
+    printf "============= ℹ️ This simple docker does not have a webserver, but if you did install & configure one, you'd see your site here: http://localhost:3090\n"
+    printf "============= 👉 If you want to SSH: "
+    echo  "./docker-ssh" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+    printf "\n"
+    
+    # prompt if they want to run ./docker-ssh
+    read -p "Do you want to run ./docker-ssh now? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        ./docker-ssh
+    else
+        printf "============ VIEW PRE-RUN LOG: \n"
+        echo "📋 ./docker-log" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+        printf "\n"
+        # prompt if they want to run cat pre-run/pre-run.log
+        read -p "Do you want to view the log now? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]
+        then
+            ./docker-log
+        fi
+    fi
+else
+    printf "============= ❌ Docker failed to build.\n"
+fi

@@ -1,0 +1,17 @@
+# SimpleDocker #
+######################
+pre-run/pre-run*
+!pre-run/pre-run-default
+!pre-run/pre-run-example
+!pre-run/pre-run-wrapper
+scripts/script*
+!scripts/script-example
+ubuntu-version-override
+Dockerfile-Computed
+docker-compose-computed.yml
+
+# OS generated files #
+######################
+.DS_Store*
+ehthumbs.db
+Thumbs.db

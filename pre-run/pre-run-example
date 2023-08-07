@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -e
+
+PHP_VERSION='8.0'
+OWNER_USER='ubuntu'
+DAEMON_USER="www-data"
+DAEMON_GROUP="www-data"
+SCRIPT_USER='root'
+SSH_EMAIL='me@simpledocker.com'
+SSH_PATH="$HOME/.ssh/id_rsa"
+
+# Send stdout and stderr to both console and log file
+>/var/www/simple-docker/pre-run/pre-run.log
+exec >  >(tee -a /var/www/simple-docker/pre-run/pre-run.log)
+exec 2> >(tee -a /var/www/simple-docker/pre-run/pre-run.log >&2)
+
+# Install git
+printf "============ Install Git\n"
+sudo apt-get install -y git
+
+# Check if /var/www exists
+printf "============ Check if /var/www/ exists - if not, create it\n"
+if [ ! -d "/var/www" ]; then  
+    sudo mkdir /var/www/
+    sudo chown -R $OWNER_USER:$DAEMON_GROUP /var/www/
+fi
+
+printf "============ Changing directory to /var/www\n"
+cd /var/www/
+
+# LEMP-setup-guide - installs nginx, php, mariadb
+printf "============ Install LEMP stack from guide\n"
+
+# Check if guide exists
+if [ ! -d "/var/www/LEMP-setup-guide/" ]; then
+    printf "============ Cloning LEMP stack guide\n"  
+    git clone 'https://github.com/amurrell/LEMP-setup-guide.git'
+fi
+
+# Alter PHP version to PHP_VERSION
+printf "============ Alter LEMP GUIDE: PHP version to $PHP_VERSION\n"
+echo "$PHP_VERSION" > /var/www/LEMP-setup-guide/config/versions/override-php-version
+
+# Run the LEMP guide Install
+printf "============ Run LEMP GUIDE: Install - takes a while\n"
+cd /var/www/LEMP-setup-guide/scripts
+./server-initial-setup.sh
+

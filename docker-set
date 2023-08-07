@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+# user will run: ./docker-set -p <name-of-pre-run-script>
+# this script will:
+# 1. validate option -p
+# 2. script will ask if you want to backup current pre-run file if it exists - if so, what name. save as pre-run/pre-run-<name>
+# 3. this script will: find in pre-run/pre-run-<name-of-pre-run-script> and cp to pre-run/pre-run
+
+####
+
+# 1. Validate option -p
+
+# command is: ./docker-set -p <name-of-pre-run-script> 
+# get the <name-of-pre-run-script> from the command
+# store in variable P
+while getopts ":hp:" opt; do
+  case $opt in
+    h) printf "ℹ️  How to use:\n./docker-set -p <pre-run-script-suffix>\n"
+    exit 1
+    ;;
+    p) P="$OPTARG"
+    ;;
+    \?) printf "============ ❌ Invalid option -$OPTARG\n" >&2
+    exit 1
+    ;;
+  esac
+done
+
+# if P is empty or the file pre-run/pre-run-$P does not exist - exit
+if [ -z "$P" ] || [ ! -f pre-run/pre-run-$P ]; then
+    printf "============ ❌ pre-run/pre-run-$P does not exist\n"
+    exit 1
+fi
+
+# 2. does pre-run/pre-run exist? do you want to back it up? what name to save as?
+
+if [ -f pre-run/pre-run ]; then
+    read -p "============ 🤔 Pre-run script detected. Backup pre-run/pre-run? (y/n)" -n 1 -r
+    printf "\n"
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        read -p "============ 🤔 What name to save as? " -r
+        printf "\n"
+        cp pre-run/pre-run pre-run/pre-run-$REPLY
+        printf "============ ✅ pre-run/pre-run saved as pre-run/pre-run-$REPLY\n"
+    fi
+fi
+
+# 3. find in pre-run/pre-run-<name-of-pre-run-script> and cp to pre-run/pre-run
+
+cp pre-run/pre-run-$P pre-run/pre-run
+printf "============ ✅ pre-run/pre-run-$P copied to pre-run/pre-run\n"
+

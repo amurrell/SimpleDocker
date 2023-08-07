@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+printf "============ 👋 Did you know?\n" 
+printf "============ You can define a 🏃‍♀️ pre-run script...\n"
+printf "============ ...and it will get 💾 cached by docker - saving you lots of time.\n"
+printf "============ Try pre-run with LEMP-setup-guide:\n\n"
+echo  "👉 cp pre-run/pre-run-example pre-run/pre-run && ./docker-up -d=true" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+printf "\n"

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# run command and send output to log
+LOG=/var/www/pre-run.log
+CMD="./pre-run"
+
+printf "============ CD: simple-docker/pre-run\n"
+cd simple-docker/pre-run
+printf "============ RUN: $CMD\n"
+$CMD 2>&1 | tee $LOG
