@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+
+set -e
+
+printf "\n//////////////////////////////////////////////////////////////////////////////////////////////\n"
+printf "░██████╗██╗███╗░░░███╗██████╗░██╗░░░░░███████╗██████╗░░█████╗░░█████╗░██╗░░██╗███████╗██████╗░
+██╔════╝██║████╗░████║██╔══██╗██║░░░░░██╔════╝██╔══██╗██╔══██╗██╔══██╗██║░██╔╝██╔════╝██╔══██╗
+╚█████╗░██║██╔████╔██║██████╔╝██║░░░░░█████╗░░██║░░██║██║░░██║██║░░╚═╝█████═╝░█████╗░░██████╔╝
+░╚═══██╗██║██║╚██╔╝██║██╔═══╝░██║░░░░░██╔══╝░░██║░░██║██║░░██║██║░░██╗██╔═██╗░██╔══╝░░██╔══██╗
+██████╔╝██║██║░╚═╝░██║██║░░░░░███████╗███████╗██████╔╝╚█████╔╝╚█████╔╝██║░╚██╗███████╗██║░░██║
+╚═════╝░╚═╝╚═╝░░░░░╚═╝╚═╝░░░░░╚══════╝╚══════╝╚═════╝░░╚════╝░░╚════╝░╚═╝░░╚═╝╚══════╝╚═╝░░╚═╝"
+printf "\n//////////////////////////////////////////////////////////////////////////////////////////////\n"
+printf "//\n"
+printf "//\t🐳 This script is for generating provisioning scripts into scripts/server-<server-name> folder\n"
+printf "//\n"
+printf "//\n"
+printf "//////////////////////////////////////////////////////////////////////////////////////////////\n"
+
+# This script will read the template-<template> file
+# and prompt for all the variables in that file to help
+# 1) produce a new folder with provisioning scripts
+# 2) create the main script to run based on this template, with the variables all figured out
+#
+# The user will use this script like this: ./docker-script -t devops -n <server-name>
+# where
+# -n = server name eg. "server-php8.2" or "server-prod-api" or "mysite.com"
+# -t = (optional|default:main) template suffix to use eg. scripts/templates/template-<template>
+# -h = help - tell people how to use this script and what the options are
+#
+# After the first run, the user can use ./docker-run -n <server-name> to run the provisioning process.
+# - ./docker-down and ./docker-up will allow the user to try it all again with clean slate (from pre-run cached)
+#
+# Once satisfied, the user can run ./docker-compile to combine the pre-run and the main script together into one script
+#
+# If looking to version-controll the provisioning folder, the user can use the main template with USING_DEVOPS_REPO=true to use provisioning scripts from a devops repo instead of the local folder
+
+HELP="ℹ️  How to use:\n\t./docker-script -n <server-name> -t <template-suffix>, where -t is optional and defaults to 'main'\n\teg. ./docker-script -n mysite.com\n"
+SERVER_NAME=""
+TEMPLATE="main"
+
+while getopts ":n:t:h" opt; do
+    case ${opt} in
+        n ) # process option n
+            SERVER_NAME=$OPTARG
+            ;;
+        t ) # process option t
+            TEMPLATE=$OPTARG
+            ;;
+        h ) # process option h
+            printf "$HELP"
+            exit 1
+            ;;
+        \? ) # invalid option
+            printf "Invalid option: $OPTARG" 1>&2
+            printf "$HELP"
+            exit 1
+            ;;
+        : ) # invalid option
+            printf "Invalid option: $OPTARG requires an argument" 1>&2
+            printf "$HELP"
+            exit 1
+            ;;
+    esac
+done
+
+# Require -n
+if [ -z "$SERVER_NAME" ]; then
+    printf "============ ❌ Generating provisioning scripts requires -n option for server-name. Try ./docker-script -h for help!\n"
+    exit 1
+fi
+
+# does template exist?
+if [ ! -f scripts/templates/template-$TEMPLATE ]; then
+    printf "============ ❌ scripts/templates/template-$TEMPLATE does not exist\n"
+    exit 1
+fi
+
+# does scripts/server-<server-name> exist? If it does - ask them if they want to overwrite it?
+if [ -d scripts/server-$SERVER_NAME ]; then
+    read -p "============ 🤔 scripts/server-$SERVER_NAME already exists. Overwrite? (y/n)" -n 1 -r
+    printf "\n"
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        rm -rf scripts/server-$SERVER_NAME
+    else
+        printf "============ ❌ Aborting - not going to overwrite\n"
+        exit 1
+    fi
+fi
+
+# store docker exec command in a variable
+COMMAND="docker exec -t -i \"dockerlocal3090\"-web-1 /bin/bash -i -c \"cd /var/www/simple-docker/scripts/server-$SERVER_NAME && ./run-$SERVER_NAME\""
+
+printf "============ 🖥️\tServer name: $SERVER_NAME\n"
+printf "============ 📃\tUsing template: $TEMPLATE\n"
+
+# then the script will:
+#   - make a folder scripts/server-<server-name>
+#   - create a script-<server-name> based on template-<template>
+#   - prompt to fill in all the variables in the script-<server-name> based on what's in the template file
+#   - we already know <server-name> because it is the same as <server-name>
+
+
+# Define the prompt function
+# - ensure that each variable becomes available in this scope too. eg. php-version becomes PHP_VERSION
+# Takes a few arguments:
+# - 1. Label
+# - 2. variable-name
+# - 3. default value
+# - 4. prompt type (inline or paste)
+# - 5. conditional=VAR_NAME - only if this other variable is set and true, should we prompt for this variable
+function prompt {
+    # if $5 is not empty and equals 'conditional=' with some variable name after it, then check if $CONDITIONAL_VAR_NAME is set and true, and if not, return
+    if [ ! -z "$5" ] && [[ "$5" == conditional=* ]]; then
+        CONDITIONAL_VAR_NAME=$(echo "$5" | cut -d'=' -f 2)
+        if [ -z "${!CONDITIONAL_VAR_NAME}" ] || [ "${!CONDITIONAL_VAR_NAME}" == "false" ]; then
+            return
+        fi
+    fi
+
+    # if $4 is not empty and equals 'paste' then prompt for a multi-line paste
+    if [ ! -z "$4" ] && [ "$4" == "paste" ]; then
+        printf "============ 🤔 $1? (ℹ️ paste multi-line text, press enter, and press ctrl-d to move on)\n"
+        REPLY=$(cat)
+    else
+        read -p "============ 🤔 $1? " -r
+        printf "\n"
+    fi
+
+    # if REPLY is empty, use the default value ($3)
+    if [ -z "$REPLY" ]; then
+        REPLY="$3"
+    fi
+
+    # need to morph $2 into a variable name and set the reply equal to that and export it
+    # eg. <php-version> becomes PHP_VERSION
+
+    # convert to uppercase
+    VAR_NAME=$(echo "$2" | tr '[:lower:]' '[:upper:]')
+    # replace - with _
+    VAR_NAME=$(echo "$VAR_NAME" | sed 's/-/_/g')
+    # export the variable
+    export $VAR_NAME="$REPLY"
+
+    # replace the variable ($2) in scripts/server-<server-name>/run-<server-name> with the value ($REPLY)
+    # it needs to work with multiline variables like <public-key> and <private-key>
+
+    # handle replacing the variables differently depending on "paste" argument
+    if [ ! -z "$4" ] && [ "$4" == "paste" ]; then
+        # replace <variable> with $REPLY but reply is multiline with newlines.
+        # escape the REPLY so that it can be used in sed - for /, &, and newlines
+        REPLY=$(echo "$REPLY" | sed -e 's/[\/&]/\\&/g' -e 's/$/\\n/' | tr -d '\n')
+        sed -i '' -e "s/<$2>/$REPLY/g" scripts/server-$SERVER_NAME/run-$SERVER_NAME
+    else
+        sed -i '' -e "s/<$2>/$REPLY/g" scripts/server-$SERVER_NAME/run-$SERVER_NAME
+    fi
+}
+
+# make a folder scripts/server-<server-name>
+mkdir scripts/server-$SERVER_NAME
+
+# create a script-<server-name> based on template-<template>
+cp scripts/templates/template-$TEMPLATE scripts/server-$SERVER_NAME/run-$SERVER_NAME
+
+TEMPLATE_FILE="scripts/server-$SERVER_NAME/run-$SERVER_NAME"
+# scan the template-$TEMPLATE file for an area that starts with #### START VARIABLES and ends with #### END VARIABLES
+# and ends with #### END VARIABLES
+# and then prompt for each variable in that section
+# that follows the pattern: Pattern: <variable-name:variable-label:default-value:prompt-type:conditional=VAR_NAME>
+# and plugin into a prompt function: eg. prompt "<label> eg. <default>" "<variable-name>" "<default-value>" "<prompt-type>" "<conditonal=VAR_NAME>"
+
+# Use sed to extract the section between 'START VARIABLES' and 'END VARIABLES'
+VARIABLES_SECTION=$(sed -n '/#### START VARIABLES/,/#### END VARIABLES/p' $TEMPLATE_FILE)
+
+printf "============ 👉👉 Prompting for variables found in the template file - Press enter to accept default values.\n\n"
+
+# IFS (Internal Field Separator) set to newline for loop iteration over lines
+IFS=$'\n'
+
+# Loop through each line of the extracted section
+for LINE in $VARIABLES_SECTION; do
+    # Skip lines that don't start with '# <' (i.e., actual variable lines)
+    if [[ $LINE =~ ^#\ \< ]]; then
+        # Remove the starting '# ' for easier processing
+        LINE=${LINE:2}
+
+        # Split the line based on ':' and '<', '>' delimiters
+        IFS=":><" read -ra PARTS <<< "$LINE"
+
+        VAR_NAME="${PARTS[1]}"
+        VAR_LABEL="${PARTS[2]}"
+        DEFAULT_VALUE="${PARTS[3]}"
+        PROMPT_TYPE="${PARTS[4]}"
+        CONDITIONAL="${PARTS[5]:-}" # Use the fifth part if exists, otherwise empty
+
+        # Call your prompt function with the extracted values
+        prompt "$VAR_LABEL (default:$DEFAULT_VALUE)" "$VAR_NAME" "$DEFAULT_VALUE" "$PROMPT_TYPE" "$CONDITIONAL"
+    fi
+done
+
+# <server-name> - comes from the -n argument
+sed -i '' -e "s/<server-name>/$SERVER_NAME/g" scripts/server-$SERVER_NAME/run-$SERVER_NAME
+
+printf "============ ✅ All variables set\n"
+
+# Copy over the template scripts over
+cp -r scripts/templates/0* scripts/server-$SERVER_NAME/
+
+printf "============ ✅ All scripts copied over\n"
+
+# Do you want to run the scripts now?
+read -p "============ 🤔 Do you want to run the scripts now? (y/n)" -n 1 -r
+printf "\n"
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+
+    # we need to check if the container is running, and if not, tell the user to run ./docker-up
+    if [ ! "$(docker ps -q -f name=dockerlocal3090-web-1)" ]; then
+        printf "============ ❌ Docker container is not running. Please run ./docker-up && ./docker-run\n"
+        exit 1
+    fi
+
+    ./docker-run -n $SERVER_NAME
+fi
+

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+set -e
+
+# we need to check if the container is running, and if not, tell the user to run ./docker-up
+if [ ! "$(docker ps -q -f name=dockerlocal3090-web-1)" ]; then
+    printf "============ ❌ Docker container is not running. Please run ./docker-up\n"
+    exit 1
+fi
+
+# temporary: Inside the docker container:
+# Copy /var/www/simple-docker/scripts/templates/setup-site to /var/www/LEMP-setup-guide/scripts/setup-site && chmod +x it
+# docker exec -t -i dockerlocal3090-web-1 /bin/bash -i -c "cp /var/www/simple-docker/scripts/templates/setup-site /var/www/LEMP-setup-guide/scripts/ && chmod +x /var/www/LEMP-setup-guide/scripts/setup-site"
+
+# user will use this script like: ./docker-run -n <server-name>
+HELP="ℹ️  How to use:\n\t./docker-run -n <server-name>\n\teg. ./docker-run -n mysite.com\n"
+# getopts for -n for server name, take a -h for help too
+while getopts ":n:h" opt; do
+    case ${opt} in
+        n ) # process option n
+            SERVER_NAME=$OPTARG
+            ;;
+        h ) # process option h
+            printf "$HELP"
+            exit 1
+            ;;
+        \? ) # invalid option
+            printf "Invalid option: $OPTARG" 1>&2
+            printf "$HELP"
+            exit 1
+            ;;
+        : ) # invalid option
+            printf "Invalid option: $OPTARG requires an argument" 1>&2
+            printf "$HELP"
+            exit 1
+            ;;
+    esac
+done
+
+# Require -n
+if [ -z "$SERVER_NAME" ]; then
+    printf "============ ❌ Running a script requires -n option for server-name\n"
+    exit 1
+fi
+
+# store docker exec command in a variable
+COMMAND="docker exec -t -i \"dockerlocal3090\"-web-1 /bin/bash -i -c \"cd /var/www/simple-docker/scripts/server-$SERVER_NAME && chmod +x run-$SERVER_NAME && ./run-$SERVER_NAME\""
+
+# if run is true and scripts/server-<server-name>/run-<server-name> exists, then we need to run scripts/server-<server-name>/run-<server-name>
+if $RUN && [ -f scripts/server-$SERVER_NAME/run-$SERVER_NAME ]; then
+    printf "============ 🖥️\tServer name: $SERVER_NAME\n"
+    printf "============ 🏃\tRunning script: scripts/server-$SERVER_NAME/run-$SERVER_NAME\n"
+    # execute the script from inside the docker container
+    eval $COMMAND
+    exit 1
+fi

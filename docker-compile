@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -e
+
+PRE_RUN='pre-run'
+HELP="ℹ️  How to use:\n\t./docker-compile -n <server-name> -p <pre-run>, where the -p is optional if there's an active pre-run already.\n\teg. ./docker-compile -n mysite.com -p pre-run-mysite.com\n"
+# getopts for -p for pre-run (default:pre-run) and require -n for server name, take a -h for help too
+while getopts ":n:p:h" opt; do
+    case ${opt} in
+        n ) # process option n
+            SERVER_NAME=$OPTARG
+            ;;
+        p ) # process option p
+            PRE_RUN=$OPTARG
+            ;;
+        h ) # process option h
+            printf "$HELP"
+            exit 1
+            ;;
+        \? ) # invalid option
+            printf "Invalid option: $OPTARG" 1>&2
+            printf "$HELP"
+            exit 1
+            ;;
+        : ) # invalid option
+            printf "Invalid option: $OPTARG requires an argument" 1>&2
+            printf "$HELP"
+            exit 1
+            ;;
+    esac
+done
+
+# Check if -c requires -n
+if [ -z "$SERVER_NAME" ]; then
+    printf "============ ❌ compiling requires -n option for server-name to know which server-script to compile\n"
+    exit 1
+fi
+
+# check if scripts/server-<server-name>/run-<server-name> exists
+if [ ! -f scripts/server-$SERVER_NAME/run-$SERVER_NAME ]; then
+    printf "============ ❌ scripts/server-$SERVER_NAME/run-$SERVER_NAME does not exist\n"
+    exit 1
+fi
+
+# check if pre-run exists
+if [ ! -f "pre-run/$PRE_RUN" ]; then
+    printf "============ ❌ pre-run/$PRE_RUN does not exist\n"
+    exit 1
+fi
+
+# We need to compile the pre-run and scripts/server-<server-name>/run-<server-name> into scripts/server-<server-name>/compiled-<server-name>
+# in the in the pre-run, everything below the line "#### START SCRIPT" should be copied into the compiled script, and everything in scripts/server-<server-name>/run-<server-name> should be copied into the compiled script after that
+# then we need to chmod +x scripts/server-<server-name>/compiled-<server-name>
+
+printf "============ ⚙️\tPre-Run: $PRE_RUN\n"
+printf "============ 🖥️\tServer name: $SERVER_NAME\n"
+
+# check if scripts/server-<server-name>/compiled-<server-name> exists
+if [ -f scripts/server-$SERVER_NAME/compiled-$SERVER_NAME ]; then
+    # prompt to override it?
+    read -p "============ 🤔 scripts/server-$SERVER_NAME/compiled-$SERVER_NAME already exists. Overwrite? (y/n)" -n 1 -r
+    printf "\n"
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        rm scripts/server-$SERVER_NAME/compiled-$SERVER_NAME
+    else
+        printf "============ ❌ scripts/server-$SERVER_NAME/compiled-$SERVER_NAME already exists\n"
+        exit 1
+    fi
+fi
+
+# in pre-runs/pre-run grab everything after #### START SCRIPT and put it into a variable
+PRE_RUN=$(sed -n '/#### START SCRIPT/,$p' pre-run/$PRE_RUN)
+
+# Copy scripts/server-<server-name>/run-<server-name> into scripts/server-<server-name>/compiled-<server-name>
+cp scripts/server-$SERVER_NAME/run-$SERVER_NAME scripts/server-$SERVER_NAME/compiled-$SERVER_NAME
+
+# Insert the content of $PRE_RUN into scripts/server-<server-name>/compiled-<server-name> at the #### INSERT PRE-RUN SCRIPT HERE line
+sed -i '' -e "/#### INSERT PRE-RUN SCRIPT HERE/r /dev/stdin" scripts/server-$SERVER_NAME/compiled-$SERVER_NAME <<< "$PRE_RUN"
+
+# chmod +x scripts/server-<server-name>/compiled-<server-name>
+chmod +x scripts/server-$SERVER_NAME/compiled-$SERVER_NAME
+
+printf "============ ✅ Compiled script created: scripts/server-$SERVER_NAME/compiled-$SERVER_NAME\n"
+exit 1

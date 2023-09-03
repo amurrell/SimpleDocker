@@ -4,7 +4,7 @@ A **Simple Docker** container with only Ubuntu. Nothing else installed, just cle
 
 Use for **local development of provisioning scripts** (eg. bash scripts) to setup cloud servers - whether starting from scratch, testing upgrades, or testing version compatibility.
 
-... 🍪 But then you give a mouse a cookie... and we added lots of customization, pre-run scripts, an example LEMP stack, etc. Read the [highlights](#repo-highlights)!
+... ✋ But wait!  There's more! We added docker/version customizations, an optional script-provisioning boilerplate to help generate them from scratch, and pre-run scripts to avoid repetition and speed up local development.  Read the [highlights](#repo-highlights)!
 
 ---
 
@@ -28,15 +28,20 @@ With a local development environment for cloud provisioning scripts, you can mor
 
 - If you don't have stack script yet, the example pre-run in this repo installs [LEMP-setup-guide](https://github.com/amurrell/LEMP-setup-guide) (PHP, Nginx, Mysql/MariaDB) which you can also use on production servers so this serves as a great place to start a pre-run script from! If you need specific versions, you can actually customize the LEMP-setup-guide quite a bit with override versioning to your needs!
 
-### Repo Highlights: 
+- Additionally, if you have literally no provisioning scripts yet and need to start them, you can use `./docker-script -t simple <server-name>` to generate a boilerplate and examples for you to start with. When done, you can compile the pre-run and your server scripts to use on your cloud servers `./docker-script -c -n <server-name>`.
+
+### Repo Highlights:
 
 - Use any version of Ubuntu (tested minimum: 16.04)
 - Can completely start over and get a blank canvas on each run.
 - Simple commands: `./docker-up`, `./docker-down`, `./docker-ssh`
 - Create a ["pre-run script" to leverage **docker caching**](#configure-pre-run-scripts) on redundant setup & installations in order to target parts of your scripts that need testing via multiple runs!
-- [LEMP-setup-guide](https://github.com/amurrell/LEMP-setup-guide) pre-run example included, and you can use it on your cloud server too. Serves as an excellent boilerplate for laravel, wordpress or vueJS/react projects too! Has additional installations in that project for composer, nvm, pm2 etc.
+- Example pre-run script using [LEMP-setup-guide](https://github.com/amurrell/LEMP-setup-guide) included, and you can use it on your cloud server too. Serves as an excellent boilerplate for laravel, wordpress or vueJS/react projects too! Has additional installations in that project for composer, nvm, pm2 etc. You can change versions of things it installs very easily.
 - For even more customization, [edit the `Dockerfile-computed`](#Configure-Dockerfile) to your liking - eg. edit default packages the server may have on it to mirror your cloud setup.
-- Logging by default - Pre-run scripts AND your own scripts will out to file and stdoutput so you can see how your scripts ran and where they failed. For pre-runs, simply `./docker-log` while your machine is on. For your own scripts, make sure they output where you want - eg. `scripts/script-my-server-name.log`
+- Logging by default - Pre-run scripts AND your own scripts will out to file and stdoutput so you can see how your scripts ran and where they failed. For pre-runs, simply `./docker-log` while your machine is on. For your own scripts, make sure they output where you want - eg. `scripts/server-<server-name>.log`
+- Don't have any provisioning scripts yet? We added `./docker-script -t <template> -n <server-name>` to help you get started with a whole folder of setup scripts to execute in order.
+- Ready for production? When you're satisfied with your test runs, you can compile your active pre-run and server script into one script via command `./docker-script -c -n <server-name>`. Simply copy the `scripts/server-<server-name>` to your server and run the compiled version via `./compile-<server-name>`.
+- Don't want to copy folders to your server? Want to version control your provisioning scripts? Sure! Use the devops template instead `./docker-script -t devops -n <server-name` to pull the scripts from a devops repository.
 
 [↑ Contents](#contents)
 
@@ -51,14 +56,14 @@ With a local development environment for cloud provisioning scripts, you can mor
 
 - optional: change ubuntu version, or keep default 20.04
 
-        echo "22.04" > ubuntu-version-override
+        echo "22.04" > override-ubuntu-version
 
 - to build and start up your container:
 
         ./docker-up
 
 - to view log output of a pre-run script
-    
+
         ./docker-log
 
 - to ssh into your container:
@@ -81,7 +86,7 @@ With a local development environment for cloud provisioning scripts, you can mor
 
 ## Configure Pre-Run Scripts
 
-Pre-run scripts are in the `pre-run/` folder - where there is initially a default script, an example, and a wrapper. 
+Pre-run scripts are in the `pre-run/` folder - where there is initially a default script, an example, and a wrapper.
 
 - `pre-run`
 
@@ -109,9 +114,9 @@ Pre-run scripts are in the `pre-run/` folder - where there is initially a defaul
 
 ### Changing the pre-run script:
 
-On first run of `./docker-up` it will copy `pre-run/pre-run-default` into `pre-run/pre-run` if one does not exist yet. 
+On first run of `./docker-up` it will copy `pre-run/pre-run-default` into `pre-run/pre-run` if one does not exist yet.
 
-Changing the pre-run script is made easier with `./docker-set -p <suffix-name>` and will even prompt to backup your current pre-run just in case you have one already unsaved. 
+Changing the pre-run script is made easier with `./docker-set -p <suffix-name>` and will even prompt to backup your current pre-run just in case you have one already unsaved.
 
 Run in the terminal:
 
@@ -136,7 +141,7 @@ Each time you change your pre-run script, you may need to force the docker conta
 
 - **Importing from elsewhere:**
 
-    If you already have scripts that setup your server, use them by copying the contents into a file and name it `script-my_server`. 
+    If you already have scripts that setup your server, use them by copying the contents into a file and name it `script-my_server`.
     Make it executable.
     Ensure that you are logging the output to a file of your choice - eg. `scripts/script-log-my_server.log`. You can reference the script-example to see how we log to both file and output.
 
@@ -152,7 +157,7 @@ Each time you change your pre-run script, you may need to force the docker conta
 
     If using this approach, then the script-example could be modified to your own setup:
 
-    1. In your IDE, open up script-example and copy to a new file - `script-<server-name>`. 
+    1. In your IDE, open up script-example and copy to a new file - `script-<server-name>`.
     2. Do a search for all matching "variable" placeholders in the file: `<[^>]*>` with regular expression matching
     3. Replace all the variables with your own matching information. Change a lot of things to match your situation!
 
@@ -169,8 +174,8 @@ Each time you change your pre-run script, you may need to force the docker conta
     ---
 
     - **Devops Repository**
-        
-        In this example file - we are using a "devops" repository to house the setup scripts per server. You can make sure that those scripts do not store environment variables and will connect to AWS secrets manager or some other way of handling - but we are in no way encouraging any env vars stored in repos. However, the scripts themselves may be useful to have in a repository. 
+
+        In this example file - we are using a "devops" repository to house the setup scripts per server. You can make sure that those scripts do not store environment variables and will connect to AWS secrets manager or some other way of handling - but we are in no way encouraging any env vars stored in repos. However, the scripts themselves may be useful to have in a repository.
 
     ---
 
@@ -262,15 +267,15 @@ This simple docker does not have a webserver, but if you were to install & confi
     3. reloads php - `sudo service php8.0-fpm reload` or start if it was not running already. or use different version of php. (in your pre-run script you can override LEMP versions before you actually execute it so that you get the versions of things you want.)
 
     Be warned that this will all die after `./docker-down` (minus the pre-run of course)... This is actually really nice to test out your stuff... getting a clean slate each time.
-    
+
     👉 Also, if you enjoyed this setup-site script, realize that this LEMP setup guide is pretty cool on a REAL cloud server because you can setup sites very quickly and add things like: log-rotation, cerbot (lets encrypt) ssl certificates, nvm, pm2, compsoer etc from this same project!
 
     👀 If you are looking for local devlopement solution for a webserver based project to work on the web application itself, we have that for you too! 👇
 
 - Looking for a Local Development Environment with a webserver?
 
-    Typically you would not install a webserver after creating a Docker container - it would be done in the Dockerfile so it can be cached and your databases would persist. 
-    
+    Typically you would not install a webserver after creating a Docker container - it would be done in the Dockerfile so it can be cached and your databases would persist.
+
     You can configure the Dockerfile yourself how you like... or you can just use [DockerLocal](https://github.com/amurrell/DockerLocal) which has nginx, php7, composer, mysql/mariadb, memcached/redis - with similar versioning built in
 
 [↑ Contents](#contents)

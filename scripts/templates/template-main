@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+
+# Defining variables to be replaces by docker-script prompts.
+# They will follow this pattern: Pattern: <variable-name:variable-label:default-value:prompt-type:conditional=VAR_NAME>
+# and then you can use them throughout this template. The docker-script file will scan this section below and use for dynamic prompting.
+# - variable-name eg "php-version"
+# - variable-label eg "PHP Version"
+# - default-value eg php-version default: "8.2"
+# - prompt-type eg "inline" or "paste"
+# - conditional=VAR_NAME eg "conditional=USING_DEVOPS_REPO" - only if this other variable is set and true, should we prompt for this variable
+
+#### START VARIABLES
+# <using-devops-repo:Using Devops Repo:false:inline>
+# <php-version:PHP Version:8.2:inline>
+# <node-version:Node Version:18.17.1:inline>
+# <owner-user:Owner User:ubuntu:inline>
+# <daemon-user:Daemon User:www-data:inline>
+# <daemon-group:Daemon Group:www-data:inline>
+# <script-user:Script User:root:inline>
+# <ssh-public-key:SSH Public Key:null:paste>
+# <ssh-private-key:SSH Private Key:null:paste>
+# <devops-public-key:Devops Public Key:null:paste:conditional=USING_DEVOPS_REPO>
+# <devops-private-key:Devops Private Key:null:paste:conditional=USING_DEVOPS_REPO
+# <devops-repo:Devops Repo:null:inline:conditional=USING_DEVOPS_REPO>
+# <install-scripts-path:Install Scripts Path:null:inline:conditional=USING_DEVOPS_REPO>
+# <github-user:Github User:null:inline:conditional=USING_DEVOPS_REPO>
+#### END VARIABLES
+
+# Error handling - if any command fails, we want the whole script to fail
+set -e
+
+# DEFINE VARS
+RUNNING_FROM=$(pwd)
+
+# DEVOPS VARS
+USING_DEVOPS_REPO=<using-devops-repo>
+CUSTOM_SCRIPTS_PATH="/root/<devops-repo>/<install-scripts-path>"
+DEVOPS_DESTINATION="/root"
+DEVOPS_REPOSITORY_URL="git@github.com-<devops-repo>:<github-user>/<devops-repo>.git"
+
+#SHARED VARS
+PHP_VERSION='<php-version>'
+NODE_VERSION='<node-version>'
+OWNER_USER='<owner-user>'
+DAEMON_USER="<daemon-user>"
+DAEMON_GROUP="<daemon-group>"
+SCRIPT_USER='<script-user>'
+SSH_KEY_PUBLIC="<ssh-public-key>"
+SSH_KEY_PRIVATE="<ssh-private-key>"
+DEVOPS_DEPLOY_KEY_PUBLIC="<devops-public-key>"
+DEVOPS_DEPLOY_KEY_PRIVATE="<devops-private-key>"
+
+# Script Vars
+DEVOPS_NEW_KEYS=false
+# figure out if we are running dockerlocal container or simple-docker container
+if [ -d "/var/www/simple-docker" ]; then
+    SIMPLE_DOCKER=true
+else
+    SIMPLE_DOCKER=false
+fi
+
+# Send stdout and stderr to both console and log file
+LOG_LOCATION="$RUNNING_FROM/script-log-<server-name>.log"
+>$LOG_LOCATION
+exec >  >(tee -a $LOG_LOCATION)
+exec 2> >(tee -a $LOG_LOCATION >&2)
+
+#### INSERT PRE-RUN SCRIPT HERE
+
+# Setup the ssh keys for a user on this server
+printf "============ Setup ssh keys\n"
+echo "$SSH_KEY_PUBLIC" > ~/.ssh/id_rsa.pub
+echo "$SSH_KEY_PRIVATE" >> ~/.ssh/id_rsa
+
+# Test the ssh private key
+printf "============ Test SSH Key\n"
+cat ~/.ssh/id_rsa.pub
+
+# Fix Permissions on ssh keys
+printf "============ Fix permissions on ssh keys\n"
+chmod u=rw,go= ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
+
+# Add Github to known hosts
+printf "============ Add github known hosts\n"
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+# Add ssh config file to ensure this host uses the correct key
+printf "============ Add ssh config file to ensure this host uses the correct ssh key\n"
+echo -e "\nHost github.com\n\tIdentityFile ~/.ssh/id_rsa\n\tIdentitiesOnly yes" >> ~/.ssh/config
+
+# Setup the deploy keys for devops repo
+if [ "$USING_DEVOPS_REPO" = true ]; then
+  # if DEVOPS_DEPLOY_KEY_PUBLIC is null, we can generate a new key pair - with no password and -t ed25519
+
+  if [ "$DEVOPS_DEPLOY_KEY_PUBLIC" == "null" ]; then
+    printf "============ Generating new deploy keys\n"
+    ssh-keygen -t ed25519 -f ~/.ssh/<devops-repo>_deploy_key -q -N ""
+
+    # Replace this file's DEVOPS_DEPLOY_KEY_PUBLIC=null with the new public key?
+    DEVOPS_DEPLOY_KEY_PUBLIC=$(cat ~/.ssh/<devops-repo>_deploy_key.pub)
+    sed -i -e "s/DEVOPS_DEPLOY_KEY_PUBLIC=null/DEVOPS_DEPLOY_KEY_PUBLIC=\"$DEVOPS_DEPLOY_KEY_PUBLIC\"/g" $0
+
+    # Replace this file's DEVOPS_DEPLOY_KEY_PRIVATE=null with the new private key?
+    DEVOPS_DEPLOY_KEY_PRIVATE=$(cat ~/.ssh/<devops-repo>_deploy_key)
+    sed -i -e "s/DEVOPS_DEPLOY_KEY_PRIVATE=null/DEVOPS_DEPLOY_KEY_PRIVATE=\"$DEVOPS_DEPLOY_KEY_PRIVATE\"/g" $0
+
+    # Need to exit this script and tell the user to copy the deploy key to their devops repo
+    printf "============ ❌ Please copy the deploy key below to your devops repo & then run again.\n"
+    cat ~/.ssh/<devops-repo>_deploy_key.pub
+  else
+    printf "============ Setup deploy keys\n"
+    echo "$DEVOPS_DEPLOY_KEY_PUBLIC" > ~/.ssh/<devops-repo>_deploy_key.pub
+    echo "$DEVOPS_DEPLOY_KEY_PRIVATE" >> ~/.ssh/<devops-repo>_deploy_key
+  fi
+
+  # Test the devops pub key key
+  printf "============ Test Devops Key\n"
+  cat ~/.ssh/<devops-repo>_deploy_key.pub
+
+  # Fix Permissions on ssh keys
+  printf "============ Fix permissions on devop keys\n"
+  chmod u=rw,go= ~/.ssh/<devops-repo>_deploy_key ~/.ssh/<devops-repo>_deploy_key.pub
+
+  # Add to ssh config file to ensure this host uses the correct key for devops repo
+  printf "============ Add to ssh config file to ensure this host uses the correct key for devops repo\n"
+  echo -e "\nHost github.com-<devops-repo>\n\tHostname github.com\n\tIdentityFile=/home/user/.ssh/<devops-repo>_deploy_key\n\tIdentitiesOnly=yes" >> ~/.ssh/config
+fi
+
+
+# Setup $OWNER_USER with the same ssh keys
+printf "============ Setup $OWNER_USER with the same ssh keys\n"
+mkdir -p /home/$OWNER_USER/.ssh
+cp -r ~/.ssh/* /home/$OWNER_USER/.ssh/
+printf "============ Adjust permissions for $OWNER_USER ssh keys\n"
+chown -R $OWNER_USER:$OWNER_USER /home/$OWNER_USER/.ssh
+chmod 700 /home/$OWNER_USER/.ssh
+chmod 600 /home/$OWNER_USER/.ssh/*
+# if .ssh/config exists
+if [ -f /home/$OWNER_USER/.ssh/config ]; then
+    chmod 644 /home/$OWNER_USER/.ssh/config
+fi
+# if .ssh/known_hosts exists
+if [ -f /home/$OWNER_USER/.ssh/known_hosts ]; then
+    chmod 644 /home/$OWNER_USER/.ssh/known_hosts
+fi
+# if path *.pub exists, chmod it
+if [ -f /home/$OWNER_USER/.ssh/*.pub ]; then
+    chmod 644 /home/$OWNER_USER/.ssh/*.pub
+fi
+
+# Check if /var/www exists
+printf "============ Check if /var/www/ exists - if not, create it\n"
+if [ ! -d "/var/www" ]; then
+    sudo mkdir /var/www/
+    sudo chown -R $OWNER_USER:$DAEMON_GROUP /var/www/
+fi
+
+printf "============ Changing directory to /var/www\n"
+cd /var/www/
+
+# Clone devops repo
+# if USING_DEVOPS_REPO=true then clone the devops repo
+if [ "$USING_DEVOPS_REPO" = true ]; then
+  printf "============ Clone Private DevOps Repo\n"
+  if [ ! "$DEVOPS_REPOSITORY_URL" == "" ]; then
+      cd "$DEVOPS_DESTINATION"
+
+      git clone "$DEVOPS_REPOSITORY_URL" "<devops-repo>"
+
+      cd "$DEVOPS_DESTINATION/<devops-repo>"
+
+      # if we are running simple-docker, let's copy the install scripts to /var/www/simple-docker/scripts/server-<server-name>
+      if [ "$SIMPLE_DOCKER" = true ]; then
+        # this is for testing the scripts in the devops repo. If you wanted to do local development, should
+        # generate based on not doing a devop repo and copy your scripts into this newly generated folder for local dev.
+        printf "============ Copying install scripts to /var/www/simple-docker/scripts/server-<server-name>\n"
+        # should probably remove existing scripts that match pattern *.sh
+        rm -f "/var/www/simple-docker/scripts/server-<server-name>/*.sh"
+        cp -r "$DEVOPS_DESTINATION/<devops-repo>/install/scripts" "/var/www/simple-docker/scripts/server-<server-name>"
+      fi
+
+  fi
+else
+  # need to change custom scripts path to $RUNNING_FROM assuming we are running from /server-<server-name>
+  CUSTOM_SCRIPTS_PATH="$RUNNING_FROM"
+fi
+
+# Now we know we can safely sudo su from ubuntu, or su ubuntu when we need to.
+
+# Install custom scripts
+# Use same approach as above to run as root or owner user
+# run any other files that get put in this same folder.
+# Copy the custom scripts to LEMP guide folder for custom scripts
+printf "============ Copy Custom Scripts LEMP Guide folder for custom scripts\n"
+LEMP_CUSTOM_FOLDER="/var/www/LEMP-setup-guide/install/components/custom/scripts"
+find "$CUSTOM_SCRIPTS_PATH/" -type f | grep -i sh$ | sort | xargs -i cp {} $LEMP_CUSTOM_FOLDER
+# Make sure these scripts are executable
+printf "============ Make sure custom scripts are executable\n"
+chmod +x "$LEMP_CUSTOM_FOLDER"
+
+# Instead of calling the install script in the LEMP guide, we will call the custom scripts directly
+# so that we can distinctively run them as root or owner user
+printf "============ Loop through all the scripts in the LEMP custom scripts folder\n"
+WHERE="$LEMP_CUSTOM_FOLDER/*.sh"
+for f in $WHERE; do  # or wget-*.sh instead of *.sh
+  # if file name has string '-run-as-owner-user' in it, then run as owner user
+  if [[ $f == *"-RAOU"* ]]; then
+    printf "============ Run as $OWNER_USER: $f\n\n\n\n"
+    su - $OWNER_USER -c "bash $f"
+  else
+    printf "============ Run as root: $f\n\n\n\n"
+    bash "$f" -H  || break # if needed
+  fi
+done
+
+# Go back to root
+cd
