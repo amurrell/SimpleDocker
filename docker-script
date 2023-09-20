@@ -149,9 +149,15 @@ function prompt {
         # replace <variable> with $REPLY but reply is multiline with newlines.
         # escape the REPLY so that it can be used in sed - for /, &, and newlines
         REPLY=$(echo "$REPLY" | sed -e 's/[\/&]/\\&/g' -e 's/$/\\n/' | tr -d '\n')
+
+        # if reply has "null" in it (and possibly new lines), REPLY=null
+        if [[ "$REPLY" == *"null"* ]]; then
+            REPLY="null"
+        fi
+
         sed -i '' -e "s/<$2>/$REPLY/g" scripts/server-$SERVER_NAME/run-$SERVER_NAME
     else
-        sed -i '' -e "s/<$2>/$REPLY/g" scripts/server-$SERVER_NAME/run-$SERVER_NAME
+        sed -i '' -e "s|<$2>|$REPLY|g" scripts/server-$SERVER_NAME/run-$SERVER_NAME
     fi
 }
 

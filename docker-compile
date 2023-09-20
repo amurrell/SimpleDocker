@@ -3,15 +3,33 @@
 set -e
 
 PRE_RUN='pre-run'
-HELP="ℹ️  How to use:\n\t./docker-compile -n <server-name> -p <pre-run>, where the -p is optional if there's an active pre-run already.\n\teg. ./docker-compile -n mysite.com -p pre-run-mysite.com\n"
-# getopts for -p for pre-run (default:pre-run) and require -n for server name, take a -h for help too
-while getopts ":n:p:h" opt; do
+HELP="
+Usage: ./docker-compile -n <server-name> [options]
+
+Options:
+    -n <server-name>        : Name of the server. (Required)
+    -p <pre-run>            : Pre-run script name. (Optional: default is 'pre-run')
+    -r                      : Remove emojis from output. (Optional)
+    -h                      : Display this help message.
+
+Example:
+    ./docker-compile -n mysite.com -p pre-run-mysite.com
+
+Note:
+    The '-p' option is optional if there's an active pre-run already set.
+"
+REMOVE_EMOJIS=false
+# getopts for -p for pre-run (default:pre-run) and require -n for server name, take a -h for help too, -r for remove emojis (optional)
+while getopts ":n:p:rh" opt; do
     case ${opt} in
         n ) # process option n
             SERVER_NAME=$OPTARG
             ;;
         p ) # process option p
             PRE_RUN=$OPTARG
+            ;;
+        r ) # process option r
+            REMOVE_EMOJIS=true
             ;;
         h ) # process option h
             printf "$HELP"
@@ -76,6 +94,20 @@ cp scripts/server-$SERVER_NAME/run-$SERVER_NAME scripts/server-$SERVER_NAME/comp
 
 # Insert the content of $PRE_RUN into scripts/server-<server-name>/compiled-<server-name> at the #### INSERT PRE-RUN SCRIPT HERE line
 sed -i '' -e "/#### INSERT PRE-RUN SCRIPT HERE/r /dev/stdin" scripts/server-$SERVER_NAME/compiled-$SERVER_NAME <<< "$PRE_RUN"
+
+if [ "$REMOVE_EMOJIS" = true ]; then
+    printf "============ 🧹 Removing emojis from scripts/server-$SERVER_NAME/compiled-$SERVER_NAME\n"
+    # Remove any emojis from scripts/server-<server-name>/compiled-<server-name>
+    tmpfile=$(mktemp)
+    while IFS= read -r line; do
+        if [[ $line == *printf* ]] || [[ $line == *echo* ]]; then
+            echo "$line" | tr -cd '\11\12\15\40-\176' >> "$tmpfile"
+        else
+            echo "$line" >> "$tmpfile"
+        fi
+    done < "scripts/server-$SERVER_NAME/compiled-$SERVER_NAME"
+    mv "$tmpfile" "scripts/server-$SERVER_NAME/compiled-$SERVER_NAME"
+fi
 
 # chmod +x scripts/server-<server-name>/compiled-<server-name>
 chmod +x scripts/server-$SERVER_NAME/compiled-$SERVER_NAME

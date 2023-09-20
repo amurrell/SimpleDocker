@@ -13,26 +13,35 @@ printf "============ Script: Site Example\n"
 OWNER_USER='ubuntu'
 DAEMON_USER='www-data'
 SCRIPT_USER='root'
+SERVER='example.com'
 DOMAIN='example.com'
 GITHUB_REPO='https://github.com:amurrell/developer-wordpress.git'
 PHP_VERSION=$(cat /var/www/LEMP-setup-guide/config/versions/php-version)
 # use for location of keys on prod!
 BASE_PATH_DEPLOY_KEYS=/root/devops/config/deployment-keys
+DEPLOY_FOLDER=false
+WEB_ROOT_PATH='html'
+
+THEMENAME='devwp'
+DB_NAME='example_com'
+DB_USER='example'
+DB_PASS='sadhjfhkdsjhfkjdsf'
+
 # if override-php-version is set, use that
 if [ -f "/var/www/LEMP-setup-guide/config/versions/override-php-version" ]; then
     PHP_VERSION=$(cat /var/www/LEMP-setup-guide/config/versions/override-php-version)
 fi
 
-# if using simple-docker, deploy keys are found at /var/www/simple-docker/scripts/server-$DOMAIN/
+# if using simple-docker, deploy keys are found at /var/www/simple-docker/scripts/server-$SERVER/
 # if running via devops repo, deploy keys are found at $BASE_PATH_DEPLOY_KEYS/
-if [ -f "/var/www/simple-docker/scripts/server-$DOMAIN/$DOMAIN-deploy_key.pub" ]; then
-    DEPLOY_KEY_PUBLIC_FILE=/var/www/simple-docker/scripts/server-$DOMAIN/$DOMAIN-deploy_key.pub
+if [ -f "/var/www/simple-docker/scripts/server-$SERVER/$DOMAIN-deploy_key.pub" ]; then
+    DEPLOY_KEY_PUBLIC_FILE=/var/www/simple-docker/scripts/server-$SERVER/$DOMAIN-deploy_key.pub
 else
     DEPLOY_KEY_PUBLIC_FILE=$BASE_PATH_DEPLOY_KEYS/$DOMAIN-deploy_key.pub
 fi
 
-if [ -f "/var/www/simple-docker/scripts/server-$DOMAIN/$DOMAIN-deploy_key" ]; then
-    DEPLOY_KEY_PRIVATE_FILE=/var/www/simple-docker/scripts/server-$DOMAIN/$DOMAIN-deploy_key
+if [ -f "/var/www/simple-docker/scripts/server-$SERVER/$DOMAIN-deploy_key" ]; then
+    DEPLOY_KEY_PRIVATE_FILE=/var/www/simple-docker/scripts/server-$SERVER/$DOMAIN-deploy_key
 else
     DEPLOY_KEY_PRIVATE_FILE=$BASE_PATH_DEPLOY_KEYS/$DOMAIN-deploy_key
 fi
@@ -63,7 +72,7 @@ sudo service nginx start &
 
 # Makr sure php-fpm is running
 printf "============ Make sure php-fpm is running - bc we need it for setup-site\n"
-sudo service php8.2-fpm start &
+sudo service php$PHP_VERSION-fpm start &
 
 
 ## INSTALL Setup-Site
@@ -78,37 +87,31 @@ printf "============ Run as $SCRIPT_USER: Install Site Example Using Setup-Site\
 cd /var/www/LEMP-setup-guide/scripts
 
 # Deployment keys trick:
-# 1st time you run, set these to null and answer prompts to generate keys
+# 1st time you run, cut these out and answer prompts to generate keys
 # - add to github, and store contents (from logs) into files in this servers' scripts folder.
-#   --deploy-key-public-file=null \
-#   --deploy-key-private-file=null \
-# and when you have keys:
 #   --deploy-key-public-file=$DEPLOY_KEY_PUBLIC_FILE \
 #   --deploy-key-private-file=$DEPLOY_KEY_PRIVATE_FILE \
 # or use public repo with https: to avoid needing keys or being prompted for ssh password
 
-# with simple docker testing - use these values
+# with simple docker testing - use these values - or leave them out to use defaults from setup-site
 # --nginx-site-conf-path=/var/www/simple-docker/scripts/templates/site.nginx.conf \
 # --php-site-conf-path=/var/www/simple-docker/scripts/templates/site.php-fpm.conf \
-# but leave these out to use defaults if on production server
 
 ./setup-site \
   --domain=$DOMAIN \
   --owner-user=$OWNER_USER \
   --github=$GITHUB_REPO \
-  --deploy-key-public-file=null \
-    --deploy-key-private-file=null \
+  --deploy-subfolder=$DEPLOY_FOLDER \
+  --web-root-path=$WEB_ROOT_PATH \
   --php-pools=true \
   --nginx-with-php=true \
-  --nginx-site-conf-path=/var/www/simple-docker/scripts/templates/site.nginx.conf \
   --php-with-mysql=true \
-  --php-site-conf-path=/var/www/simple-docker/scripts/templates/site.php-fpm.conf \
   --mysql-create-db=true \
   --mysql-root-user=root \
   --mysql-root-pass=password \
-  --database-name=site_com \
-  --database-user=site.com \
-  --database-pass=cRaZyPaSs \
+  --database-name=$DB_NAME \
+  --database-user=$DB_USER \
+  --database-pass=$DB_PASS \
   --database-host=localhost \
   --database-port=3306
 
@@ -130,14 +133,64 @@ if [ ! -d "/var/www/$DOMAIN/html/wp" ]; then
     rm latest.zip
 fi
 
+# each site needs deploy-commands repo
+printf "============ Installing deploy-commands repo in /var/www/$DOMAIN\n"
+cd /var/www/$DOMAIN
+git clone https://github.com/amurrell/deploy-commands.git
+
+# wordpress deploy
+# if /var/www/deploy-commands/wordpress-deploy exists, ln -s to /var/www/$DOMAIN/commands
+if [ -d "/var/www/$DOMAIN/deploy-commands/wordpress-deploy" ]; then
+    printf "============ /var/www/$DOMAIN/deploy-commands/wordpress-deploy exists so, ln -s to /var/www/$DOMAIN/commands\n"
+    ln -s /var/www/$DOMAIN/deploy-commands/wordpress-deploy /var/www/$DOMAIN/commands
+
+    # add configuration files to this commands folder
+    printf "============ Add configuration files to this commands folder\n"
+    echo "DockerLocal/logs" > /var/www/$DOMAIN/commands/logsfolder
+    echo "html/wp-content/themes/$THEMENAME" > /var/www/$DOMAIN/commands/assetsfolder
+
+    # set OWNER_USER and OWNER_GROUP
+    echo "$OWNER_USER" > /var/www/$DOMAIN/commands/owner_user
+    echo "$DAEMON_USER" > /var/www/$DOMAIN/commands/owner_group
+
+    # need to setup config file apprepo - but make sure we get it with it's special alias
+    # Extract the repository name out of GITHUB_REPO
+    REPO_NAME=${GITHUB_REPO##*/}
+    REPO_NAME=${REPO_NAME%.git}
+    MODIFIED_REPO=${GITHUB_REPO/:/-${REPO_NAME}:}
+    echo $MODIFIED_REPO > /var/www/$DOMAIN/commands/apprepo
+
+    # Example scripts can all be made into real scripts
+    # check if there are any files starting with example_
+    printf "============ Check if there are any bash scripts starting with example_\n"
+    cd /var/www/$DOMAIN/commands
+    if ls example_* 1> /dev/null 2>&1; then
+        printf "============ Found example_ scripts, copying them to scripts without the prefix.\n"
+        for file in example_*; do
+            cp "$file" "${file#example_}"
+            chmod +x "${file#example_}"
+        done
+    fi
+
+    # mkdir for uploads - or copy a zip here in future?
+    printf "============ mkdir for uploads - or copy a zip file later\n"
+    mkdir -p /var/www/$DOMAIN/uploads
+    # ln -s the release - if /var/www/$DOMAIN/current exists, ln -s /var/www/$DOMAIN/uploads /var/www/$DOMAIN/current/html/wp-content/uploads
+    if [ -d "/var/www/$DOMAIN/current" ]; then
+        printf "============ /var/www/$DOMAIN/current exists, ln -s /var/www/$DOMAIN/uploads /var/www/$DOMAIN/current/html/wp-content/uploads\n"
+        ln -s /var/www/$DOMAIN/uploads /var/www/$DOMAIN/current/html/wp-content/uploads
+    fi
+fi
+
 # adjust permissions and ownership on /var/www/$DOMAIN
 printf "============ Adjust permissions and ownership on /var/www/$DOMAIN\n"
 chmod -R 775 /var/www/$DOMAIN
 chown -R $OWNER_USER:$DAEMON_USER /var/www/$DOMAIN
 
-
 # print that we are done
-printf "============ ✅ Setup-Site Script Done - Site Example on simple-docker is at http://localhost:3090/\n\n"
-
-# note that if testing in simple-docker and there are multiple sites, may need to use ProxyLocal with local site.yml configuration
-# that's not tested yet.
+# if /var/www/simple-docker exists, then print message about "SimpleDocker Site Example is at http://localhost:3090"
+if [ -d "/var/www/simple-docker" ]; then
+    printf "============ ✅ Setup-Site Script Done - SimpleDocker Site Example is at http://localhost:3090/\n\n"
+else
+    printf "============ ✅ Setup-Site Script Done.\n\n"
+fi

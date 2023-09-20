@@ -13,7 +13,7 @@ Use for **local development of provisioning scripts** (eg. bash scripts) to setu
 - [Overview](#overview) | [Repo Highlights](#repo-highlights)
 - [Install & Use](#install--use)
 - [Pre-Runs](#configure-pre-run-scripts) | [Changing Pre-Runs & Docker Re-Caching](#changing-the-pre-run-script)
-- [Writing Scripts](#scripts) | [Running Scripts](#running-scripts)
+- [Writing Scripts](#scripts) | [Running Scripts](#running-scripts) | [Compiling Scripts](#compiling-scripts)
 - [Configure Dockerfile & docker-compose.yml](#configure-dockerfile-or-docker-compose)
 - [Webserver & Local Development w/ one](#webserver--local-development-with-a-webserver)
 
@@ -151,15 +151,15 @@ Each time you change your pre-run script, you may need to force the docker conta
 
 - **Starting from scratch? Want a boilerplate?**
 
-    If you do not already have scripts or a concept of setup scripts for your stuff yet, then you could use the pre-run example with LEMP-setup-guide.
+    If you do not already have scripts or a concept of setup scripts for your stuff yet, then you can use `./docker-script -n <server-name>` along with `scripts/template/template-main` to generate a boilerplate for you to start with.
 
-    ---
+    You can make your own templates too! Just copy the template-main and edit them to your liking. The variables defined in this file will be dynamically read and prompted for by the `docker-script` command.
 
-    If using this approach, then the script-example could be modified to your own setup:
+    ```
+    ./docker-script -t <template> -n <server-name>
+    ```
 
-    1. In your IDE, open up script-example and copy to a new file - `script-<server-name>`.
-    2. Do a search for all matching "variable" placeholders in the file: `<[^>]*>` with regular expression matching
-    3. Replace all the variables with your own matching information. Change a lot of things to match your situation!
+    This will create a new folder `scripts/script-<your-servername>` with init scripts based on the template-main and other templates scripts we prrovide. You can edit these as needed.
 
     ---
 
@@ -224,16 +224,30 @@ Next, make sure you have put your script into the `scripts` folder with prefix `
 
 Each script should log the output to corresponding log file in your scripts folder (or wherever you want really) eg. `script-my_server_dev.log` or `script-log-my_server_dev.log` to avoid the naming completion being too similar to the script itself.
 
-Then, ssh into your container, ensure your script is executable, and trigger it:
 
 ```
-./docker-ssh
+./docker-run -n my_server_dev
+```
 
-cd /var/www/simple-docker/scripts
+[↑ Contents](#contents)
 
-chmod +x script-my_server_dev
+---
 
-./script-my_server_dev
+## Compiling Scripts
+
+When you are done testing your scripts, you can compile both the server scripts with the pre-run into one script to run on your cloud server.
+
+```
+./docker-compile -n my_server_dev -p pre-run-example -r
+```
+
+The `-r` flag is optional and means removing emojis from the script. _(linode stack scripts do not like emojis)_.
+The `-p` flag is optional and will default to `pre-run` if not passed.
+
+You will still need the entire `server-<server-name>` folder on your server, which will contain the compiled script. On the cloud, you will then run the compiled script.
+
+```
+./compiled-my_server_dev
 ```
 
 [↑ Contents](#contents)
