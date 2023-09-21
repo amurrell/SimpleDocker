@@ -46,6 +46,22 @@ else
     DEPLOY_KEY_PRIVATE_FILE=$BASE_PATH_DEPLOY_KEYS/$DOMAIN-deploy_key
 fi
 
+# This will use the deploy key as also the SERVER_SSH_KEY for repo deploy-commands workflow strategy.
+# if DEPLOY_KEY_PUBLIC_FILE is not empty and exists -
+if [ -s "$DEPLOY_KEY_PUBLIC_FILE" ]; then
+    # if DEPLOY_KEY_PUBLIC_FILE does not exist in the content of authorized_keys file, add it
+    printf "============ Add DEPLOY_KEY_PUBLIC_FILE to authorized_keys file of OWNER_USER\n"
+    # In case these don't exist...
+    su $OWNER_USER -c "mkdir -p /home/$OWNER_USER/.ssh"
+    su $OWNER_USER -c "touch /home/$OWNER_USER/.ssh/authorized_keys"
+    if ! grep -q "$DEPLOY_KEY_PUBLIC_FILE" /home/$OWNER_USER/.ssh/authorized_keys; then
+        cat $DEPLOY_KEY_PUBLIC_FILE >> /home/$OWNER_USER/.ssh/authorized_keys
+        # fix permissions on the authorized keys file and ownership to OWNER_USER
+        chmod 600 /home/$OWNER_USER/.ssh/authorized_keys
+        chown $OWNER_USER:$OWNER_USER /home/$OWNER_USER/.ssh/authorized_keys
+    fi
+fi
+
 # DETECT Services running - this example needs nginx, php-fpm, and mysql/mariadb
 # note that in simple-docker, these might not be started yet, so we need to start them
 # but in your production, you probably do not need these.
