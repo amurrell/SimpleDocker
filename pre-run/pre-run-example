@@ -2,18 +2,77 @@
 
 set -e
 
-PHP_VERSION='8.0'
+# Make sure these variables are defined in your script too.
+PHP_VERSION='8.2'
+NODE_VERSION='18.17.1'
 OWNER_USER='ubuntu'
-DAEMON_USER="www-data"
 DAEMON_GROUP="www-data"
-SCRIPT_USER='root'
-SSH_EMAIL='me@simpledocker.com'
-SSH_PATH="$HOME/.ssh/id_rsa"
 
 # Send stdout and stderr to both console and log file
->/var/www/simple-docker/pre-run/pre-run.log
-exec >  >(tee -a /var/www/simple-docker/pre-run/pre-run.log)
-exec 2> >(tee -a /var/www/simple-docker/pre-run/pre-run.log >&2)
+LOG_LOCATION=$(pwd)/pre-run.log
+>$LOG_LOCATION
+exec >  >(tee -a $LOG_LOCATION)
+exec 2> >(tee -a $LOG_LOCATION >&2)
+
+# Set the branch to use for the LEMP guide (main|dev)
+LEMP_BRANCH='main'
+
+#### START SCRIPT
+
+# Create www-data user if not exists
+printf "============ Checking for www-data user\n"
+if ! id -u "www-data" >/dev/null 2>&1; then
+    printf "============ Creating www-data user\n"
+    adduser www-data --gecos "First Last,RoomNumber,WorkPhone,HomePhone" --disabled-password
+fi
+
+# Adjust www-data user
+printf "============ Adding www-data to sudo group\n"
+usermod -aG sudo www-data
+printf "============ Adding www-data to $DAEMON_GROUP group\n"
+usermod -aG $DAEMON_GROUP www-data
+printf "============ Setting www-data user id to 1000\n"
+usermod -u 1000 www-data
+
+# Create the owner user if not exists
+printf "============ Checking for $OWNER_USER user\n"
+if ! id -u "$OWNER_USER" >/dev/null 2>&1; then
+    printf "============ Creating $OWNER_USER user\n"
+    adduser $OWNER_USER --gecos "First Last,RoomNumber,WorkPhone,HomePhone" --disabled-password
+    passwd -d $OWNER_USER
+fi
+
+# Adjust the owner user
+
+# Make sure it has a .profile and .bashrc
+printf "============ Making sure $OWNER_USER has a .profile and .bashrc\n"
+touch /home/$OWNER_USER/.profile
+touch /home/$OWNER_USER/.bashrc
+
+# Make sure the user has a .ssh folder
+printf "============ Making sure $OWNER_USER has a .ssh folder\n"
+mkdir /home/$OWNER_USER/.ssh
+
+printf "============ Adding $OWNER_USER to sudo group\n"
+usermod -aG sudo $OWNER_USER
+
+printf "============ Adding $OWNER_USER to $DAEMON_GROUP group\n"
+usermod -aG www-data $OWNER_USER
+
+# Add color to the $OWNER_USER profile eg. force_color_prompt=yes
+printf "============ Adding color to $OWNER_USER profile\n"
+echo 'force_color_prompt=yes' >> /home/$OWNER_USER/.bashrc
+
+# Make sure the user has a home directory owned by the user
+printf "============ Making sure $OWNER_USER has a home directory owned by the user\n"
+chown -R $OWNER_USER:$OWNER_USER /home/$OWNER_USER
+
+# Append source brc alias to the bashrc profile file
+echo 'alias brc="source /root/.bashrc"' >> /root/.bashrc
+
+# Fix issue with bash profile
+printf "============ Fix issue with bash profile tty mesg n error\n"
+sed -i -e 's/mesg n .*true/tty -s \&\& mesg n/g' /root/.profile
 
 # Install git
 printf "============ Install Git\n"
@@ -21,10 +80,12 @@ sudo apt-get install -y git
 
 # Check if /var/www exists
 printf "============ Check if /var/www/ exists - if not, create it\n"
-if [ ! -d "/var/www" ]; then  
+if [ ! -d "/var/www" ]; then
     sudo mkdir /var/www/
-    sudo chown -R $OWNER_USER:$DAEMON_GROUP /var/www/
 fi
+
+printf "============ Ensure $OWNER_USER:$DAEMON_GROUP ownership is applied to /var/www\n"
+sudo chown -R $OWNER_USER:$DAEMON_GROUP /var/www/
 
 printf "============ Changing directory to /var/www\n"
 cd /var/www/
@@ -32,18 +93,36 @@ cd /var/www/
 # LEMP-setup-guide - installs nginx, php, mariadb
 printf "============ Install LEMP stack from guide\n"
 
+# Fix issues with dialog
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+sudo apt-get install -y -q
+
 # Check if guide exists
 if [ ! -d "/var/www/LEMP-setup-guide/" ]; then
-    printf "============ Cloning LEMP stack guide\n"  
+    printf "============ Cloning LEMP stack guide\n"
     git clone 'https://github.com/amurrell/LEMP-setup-guide.git'
+    cd /var/www/LEMP-setup-guide/
+
+    # if we have a variable for the branch AND it is not "main" AND it is an available branch first before switching
+    if [ -n "$LEMP_BRANCH" ] && [ "$LEMP_BRANCH" != "main" ] && [ "$(git ls-remote --heads origin $LEMP_BRANCH | wc -l)" -eq "1" ]; then
+        printf "============ 🔃 Switching to $LEMP_BRANCH branch\n"
+        git checkout $LEMP_BRANCH
+
+    elif [ -n "$LEMP_BRANCH" ]; then
+        printf "============ ❌ $LEMP_BRANCH branch not found - not switching\n"
+    fi
 fi
 
 # Alter PHP version to PHP_VERSION
 printf "============ Alter LEMP GUIDE: PHP version to $PHP_VERSION\n"
 echo "$PHP_VERSION" > /var/www/LEMP-setup-guide/config/versions/override-php-version
+echo "$NODE_VERSION" > /var/www/LEMP-setup-guide/config/versions/override-node-version
 
 # Run the LEMP guide Install
 printf "============ Run LEMP GUIDE: Install - takes a while\n"
 cd /var/www/LEMP-setup-guide/scripts
 ./server-initial-setup.sh
 
+# Chown LEMP Guide to OWNER_USER and DAEMON_GROUP
+printf "============ Chown LEMP GUIDE to $OWNER_USER and $DAEMON_GROUP\n"
+chown -R $OWNER_USER:$DAEMON_GROUP /var/www/LEMP-setup-guide

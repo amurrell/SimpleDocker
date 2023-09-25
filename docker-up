@@ -2,8 +2,8 @@
 
 # Vars
 UBUNTU_VERSION=$(<ubuntu-version)
-if [ -f "ubuntu-version-override" ]; then
-    UBUNTU_VERSION=$(<ubuntu-version-override)
+if [ -f "override-ubuntu-version" ]; then
+    UBUNTU_VERSION=$(<override-ubuntu-version)
 fi
 
 # Config Files
@@ -43,7 +43,7 @@ if [ "$C" == "-c=true" ]; then
     docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml build --no-cache
 elif [ "$D" == "-d=true" ]; then
     printf "============ Docker Pull\n"
-    docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml build --no-cache --progress=plain 
+    docker-compose -p "dockerlocal3090" -f docker-compose-computed.yml build --no-cache --progress=plain
 fi
 
 printf "============ Docker Build\n"
@@ -56,7 +56,7 @@ if [ $status -eq 0 ]; then
     printf "============= 👉 If you want to SSH: "
     echo  "./docker-ssh" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
     printf "\n"
-    
+
     # prompt if they want to run ./docker-ssh
     read -p "Do you want to run ./docker-ssh now? (y/n) " -n 1 -r
     echo
@@ -64,7 +64,7 @@ if [ $status -eq 0 ]; then
     then
         ./docker-ssh
     else
-        printf "============ VIEW PRE-RUN LOG: \n"
+        printf "\n============ VIEW PRE-RUN LOG: \n"
         echo "📋 ./docker-log" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
         printf "\n"
         # prompt if they want to run cat pre-run/pre-run.log
@@ -73,6 +73,34 @@ if [ $status -eq 0 ]; then
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
             ./docker-log
+        else
+            # do you want to run a script?
+            printf "\n============ RUN SERVER: \n"
+            echo "🏃‍♀️ ./docker-run -n <server-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+            read -p "Do you want to run one now? (y/n) " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]
+            then
+                # prompt for script name
+                read -p "Enter the server name: " -r
+                echo
+                ./docker-run -n $REPLY
+            else
+                # do you want to run docker-script -n <server-name> now?
+                printf "\n============ CREATE SCRIPT: \n"
+                echo "🔨 ./docker-script -n <server-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+                read -p "Do you want to create one now? (y/n) " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]
+                then
+                    # prompt for script name
+                    read -p "Enter the server name: " -r
+                    echo
+                    ./docker-script -n $REPLY
+                else
+                    printf "============= 🤷‍♂️ Ok, bye!\n"
+                fi
+            fi
         fi
     fi
 else

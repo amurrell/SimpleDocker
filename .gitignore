@@ -4,9 +4,8 @@ pre-run/pre-run*
 !pre-run/pre-run-default
 !pre-run/pre-run-example
 !pre-run/pre-run-wrapper
-scripts/script*
-!scripts/script-example
-ubuntu-version-override
+scripts/server*
+override-ubuntu-version
 Dockerfile-Computed
 docker-compose-computed.yml
 
