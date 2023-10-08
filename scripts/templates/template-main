@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Defining variables to be replaces by docker-script prompts.
+# Defining variables to be replaced by docker-script prompts.
 # They will follow this pattern: Pattern: <variable-name:variable-label:default-value:prompt-type:conditional=VAR_NAME>
 # and then you can use them throughout this template. The docker-script file will scan this section below and use for dynamic prompting.
 # - variable-name eg "php-version"
@@ -125,7 +125,7 @@ if [ "$USING_DEVOPS_REPO" = true ]; then
 
   # Add to ssh config file to ensure this host uses the correct key for devops repo
   printf "============ Add to ssh config file to ensure this host uses the correct key for devops repo\n"
-  echo -e "\nHost github.com-<devops-repo>\n\tHostname github.com\n\tIdentityFile=/home/user/.ssh/<devops-repo>_deploy_key\n\tIdentitiesOnly=yes" >> ~/.ssh/config
+  echo -e "\nHost github.com-<devops-repo>\n\tHostname github.com\n\tIdentityFile=~/.ssh/<devops-repo>_deploy_key\n\tIdentitiesOnly=yes" >> ~/.ssh/config
 fi
 
 

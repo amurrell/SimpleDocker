@@ -15,6 +15,7 @@ DAEMON_USER='www-data'
 SCRIPT_USER='root'
 SERVER='example.com'
 DOMAIN='example.com'
+# if private, change to git@github.com
 GITHUB_REPO='https://github.com:amurrell/developer-wordpress.git'
 PHP_VERSION=$(cat /var/www/LEMP-setup-guide/config/versions/php-version)
 # use for location of keys on prod!
@@ -140,7 +141,8 @@ fi
 
 # specific to developer-wordpress in this example. Remove this!
 # install wordpress if no /var/www/$DOMAIN/html/wp folder exists
-if [ ! -d "/var/www/$DOMAIN/html/wp" ]; then
+# if deploy_folder is false and GITHUB_REPO has developer-wordpress in it
+if [ "$DEPLOY_FOLDER" = false ] && [ -d "/var/www/$DOMAIN/html/wp" ] && [[ "$GITHUB_REPO" == *"developer-wordpress"* ]]; then
     printf "============ Install Wordpress\n"
     cd /var/www/$DOMAIN/html
     curl -O -L http://wordpress.org/latest.zip
@@ -149,10 +151,12 @@ if [ ! -d "/var/www/$DOMAIN/html/wp" ]; then
     rm latest.zip
 fi
 
-# each site needs deploy-commands repo
-printf "============ Installing deploy-commands repo in /var/www/$DOMAIN\n"
-cd /var/www/$DOMAIN
-git clone https://github.com/amurrell/deploy-commands.git
+# each site needs deploy-commands repo, if deploy_folder is not false
+if [ "$DEPLOY_FOLDER" != false ]; then
+    printf "============ Installing deploy-commands repo in /var/www/$DOMAIN\n"
+    cd /var/www/$DOMAIN
+    git clone https://github.com/amurrell/deploy-commands.git
+fi
 
 # wordpress deploy
 # if /var/www/deploy-commands/wordpress-deploy exists, ln -s to /var/www/$DOMAIN/commands
