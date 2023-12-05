@@ -16,11 +16,11 @@ SCRIPT_USER='root'
 SERVER='example.com'
 DOMAIN='example.com'
 # if private, change to git@github.com
-GITHUB_REPO='https://github.com:amurrell/developer-wordpress.git'
+GITHUB_REPO='https://github.com/amurrell/developer-wordpress.git'
 PHP_VERSION=$(cat /var/www/LEMP-setup-guide/config/versions/php-version)
 # use for location of keys on prod!
 BASE_PATH_DEPLOY_KEYS=/root/devops/config/deployment-keys
-DEPLOY_FOLDER=false
+DEPLOY_FOLDER='releases'
 WEB_ROOT_PATH='html'
 
 THEMENAME='devwp'
@@ -121,6 +121,8 @@ cd /var/www/LEMP-setup-guide/scripts
   --deploy-subfolder=$DEPLOY_FOLDER \
   --web-root-path=$WEB_ROOT_PATH \
   --php-pools=true \
+  --nginx-site-conf-path=/var/www/simple-docker/scripts/templates/site.nginx.conf \
+  --php-site-conf-path=/var/www/simple-docker/scripts/templates/site.php-fpm.conf \
   --nginx-with-php=true \
   --php-with-mysql=true \
   --mysql-create-db=true \
@@ -145,6 +147,16 @@ fi
 if [ "$DEPLOY_FOLDER" = false ] && [ -d "/var/www/$DOMAIN/html/wp" ] && [[ "$GITHUB_REPO" == *"developer-wordpress"* ]]; then
     printf "============ Install Wordpress\n"
     cd /var/www/$DOMAIN/html
+    curl -O -L http://wordpress.org/latest.zip
+    unzip latest.zip
+    mv wordpress wp
+    rm latest.zip
+fi
+
+# if deploy folder is true, and developer-wordpress is in GITHUB_REPO - & "/var/www/$DOMAIN/current" exists then download wp
+if [ "$DEPLOY_FOLDER" != false ] && [[ "$GITHUB_REPO" == *"developer-wordpress"* ]] && [ -d "/var/www/$DOMAIN/current" ]; then
+    printf "============ Download Wordpress for this release\n"
+    cd /var/www/$DOMAIN/current/html/
     curl -O -L http://wordpress.org/latest.zip
     unzip latest.zip
     mv wordpress wp

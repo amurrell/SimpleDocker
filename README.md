@@ -28,7 +28,7 @@ With a local development environment for cloud provisioning scripts, you can mor
 
 - If you don't have stack script yet, the example pre-run in this repo installs [LEMP-setup-guide](https://github.com/amurrell/LEMP-setup-guide) (PHP, Nginx, Mysql/MariaDB) which you can also use on production servers so this serves as a great place to start a pre-run script from! If you need specific versions, you can actually customize the LEMP-setup-guide quite a bit with override versioning to your needs!
 
-- Additionally, if you have literally no provisioning scripts yet and need to start them, you can use `./docker-script -t simple <server-name>` to generate a boilerplate and examples for you to start with. When done, you can compile the pre-run and your server scripts to use on your cloud servers `./docker-script -c -n <server-name>`.
+- Additionally, if you have literally no provisioning scripts yet and need to start them, you can use `./docker-script -n <server-name>` to generate a boilerplate and examples for you to start with. When done, you can compile the pre-run and your server scripts to use on your cloud servers `./docker-script -c -n <server-name>`.
 
 ### Repo Highlights:
 
@@ -39,9 +39,9 @@ With a local development environment for cloud provisioning scripts, you can mor
 - Example pre-run script using [LEMP-setup-guide](https://github.com/amurrell/LEMP-setup-guide) included, and you can use it on your cloud server too. Serves as an excellent boilerplate for laravel, wordpress or vueJS/react projects too! Has additional installations in that project for composer, nvm, pm2 etc. You can change versions of things it installs very easily.
 - For even more customization, [edit the `Dockerfile-computed`](#Configure-Dockerfile) to your liking - eg. edit default packages the server may have on it to mirror your cloud setup.
 - Logging by default - Pre-run scripts AND your own scripts will out to file and stdoutput so you can see how your scripts ran and where they failed. For pre-runs, simply `./docker-log` while your machine is on. For your own scripts, make sure they output where you want - eg. `scripts/server-<server-name>.log`
-- Don't have any provisioning scripts yet? We added `./docker-script -t <template> -n <server-name>` to help you get started with a whole folder of setup scripts to execute in order.
+- Don't have any provisioning scripts yet? We added `./docker-script -t <template> -n <server-name>` to help you get started with a whole folder of setup scripts to execute in order. The `-t` flag is optional and will default to `main` if not passed. You can make your own templates too!
 - Ready for production? When you're satisfied with your test runs, you can compile your active pre-run and server script into one script via command `./docker-script -c -n <server-name>`. Simply copy the `scripts/server-<server-name>` to your server and run the compiled version via `./compile-<server-name>`.
-- Don't want to copy folders to your server? Want to version control your provisioning scripts? Sure! Use the devops template instead `./docker-script -t devops -n <server-name` to pull the scripts from a devops repository.
+- Don't want to copy folders to your server? Want to version control your provisioning scripts? Sure! Set the `DEVOPS_REPO=true` to use scripts from another repository.
 
 [↑ Contents](#contents)
 
@@ -49,36 +49,134 @@ With a local development environment for cloud provisioning scripts, you can mor
 
 ## Install & Use
 
-- clone
+### Clone
 
-        git clone git@github.com:amurrell/SimpleDocker.git
-        cd SimpleDocker
+    git clone git@github.com:amurrell/SimpleDocker.git
+    cd SimpleDocker
 
-- optional: change ubuntu version, or keep default 20.04
+### Optional: change ubuntu version, or keep default 20.04
 
-        echo "22.04" > override-ubuntu-version
+    echo "22.04" > override-ubuntu-version
 
-- to build and start up your container:
+### Build & Run
 
-        ./docker-up
+    ./docker-up
 
-- to view log output of a pre-run script
+After docker boots, you'll get these `POST-ACTION` options: 
 
-        ./docker-log
+```
+1. Run a script     # ./docker-run -n <server-name>
+2. SSH              # ./docker-ssh (into container)
+3. View logs        # ./docker-log (output of pre-run only)
+4. Create a script  # ./docker-script -n <server-name>
+```
 
-- to ssh into your container:
+**Quick Tips & Info:**
 
-        ./docker-ssh
+<details>
+<summary><strong>What is a pre-run script?</strong></summary>
 
-- trigger scripts/script-* inside container via volume
+A "pre-run" script in SimpleDocker is a script (in `pre-runs/pre-run`) that needs to run before your other provisioing scripts. It is useful for installing things that are redundant, take a long time to install, or you do not need to test. It is installed by the actual dockerfile - that way you can leverage docker caching and speed up your local development of provisioning scripts. 
 
-        cd /var/www/simple-docker/scripts/
-        ./script-my-server-setup
+This could be stuff like: installing nginx, php, mysql. You know you will need these things, but you don't need to test them every time you run your scripts. You can test your scripts by running them manually after the pre-run has installed the things you need.
 
-- to shutdown your container & clear everything:
+</details>
 
-        ./docker-down
+<details>
+<summary><strong>Test a script real quick?</strong></summary>
 
+If you want to try something out quickly you could copy a script into the scripts folder and access it in the container (because of a shared volume) and run it manually.
+
+```
+./docker-ssh # into the container
+cd /var/www/simple-docker/scripts/any-script.sh
+chmod +x any-script.sh
+./any-script.sh
+```
+
+</details>
+
+<details>
+
+<summary><strong>Create a Server "Script" (a folder of scripts intended to setup a server)</strong></summary>
+
+This action will:
+- create a folder `scripts/server-<server-name>`
+- add a run script `run-<server-name>` (based on template `main`)
+- prompt for variables definitions to populate the `run-<server-name>` script
+- add a log file `script-log-<server-name>.log` to the folder
+- add the boilerplate provisioning scripts to the folder, based on templates.
+- ask if you want to run the scripts now.
+
+</details>
+
+<details>
+<summary><strong>After generating, how to edit the run scripts?</strong></summary>
+
+After it is generated, of course you can edit it more to your needs - however, it's strongly encouraged to keep the `run-*` file standard so that you can regenerate it again if needed. The main differences should be your actual provisioning scripts that you add or adjust within the folder, and the variables you defined in the run script.
+
+If you start to have a lot of new variables to define that were not prompted for, or you need to make a lot of changes to the run-script itself, you can make your own template and use it with the `-t` flag.
+</details>
+
+<details>
+  <summary><strong>What is a run script?</strong></summary>
+
+  This run script is what is called to setup variables and trigger your other provisioning scripts accordingly. This main run script will be based on `templates/main` - which has defined variables that will be prompted for at script creation time. This variable system is dynamic meaning you can copy this template and make your own templates with custom variable prompts. Once your template is ready, you can create those custom run scripts with: `./docker-script -t <template> -n <server-name>`.
+</details>
+
+<details>
+  <summary>
+  <strong>How to decide a server name? Is there a strategy?</strong>
+  </summary>
+
+You probably know the name or single use case of your server, so that is generally a good naming pattern. 
+
+Additionally, I like to add things like `dev_` or `prod_` to the server name to indicate if it is a development server or production server. This helps me keep track of what I'm working on and what is live.
+
+Specifically for local development of provisioning scripts within SimpleDocker, I like to use a suffix with `-simple` to indicate that it is not going to use a devops repo (yet). 
+
+I use this to test out scripts and then when I'm ready to use it on a cloud server, I'll copy everything to my devops repo, commit, and then create another script with the same name but without the `-simple` suffix - and in this one, I set `DEVOPS_REPO=true` and answer the conditional devops-repo prompts. This way I can test out scripts locally using my `-simple` version, and then commit them to my devops repo when I'm ready - and test _that_ version locally as well.
+</details>
+
+<details>
+<summary><strong>Run a Server Script</strong></summary>
+
+If you do want to run with generated scripts to see it work (which includes "site-example" running a PHP site on nginx), you will need to use `pre-run-example`. 
+
+Do that via `./docker-set -p example` and then `./docker-up -d=true`. 
+
+This will ensure that PHP, mariadb, LEMP-Setup-Guide, etc. are installed - which are needed to run the "site-example" wordpress site.
+
+Also, update the variables in `pre-run` to match your variables in `main` (eg. `PHP_VERSION`, `NODE_VERSION`, etc).
+
+</details>
+
+<details>
+<summary><strong>Workflow with Local Development</strong></summary>
+
+After initial build and script creation, you can edit your scripts and quickly retrigger them:
+
+**Example:** Running a script after a fresh start
+
+```
+./docker-down && ./docker-up
+============ POST-ACTION:
+1. Run a script
+2. SSH
+3. View logs
+4. Create a script
+
+Enter the number of the post action you want to perform (ctrl+d to exit): 1
+============ SELECT SCRIPT:
+1. server-my_server
+
+Enter the number of the script you want to run: 1
+
+============= 🏃‍♀️ Running script: server-my_server
+============ 🖥️	Server name: my_server
+============ 🏃	Running script: scripts/server-my_server/run-my_server
+```
+</details>
 
 [↑ Contents](#contents)
 
@@ -101,7 +199,8 @@ Pre-run scripts are in the `pre-run/` folder - where there is initially a defaul
     Can be copied to pre-run. It uses repo [LEMP-setup-guide](https://github.com/amurrell/LEMP-setup-guide) as an example. That project makes LEMP setup super easy and customizable (versioning) with Mysql/MariaDb, PHP, Nginx, and more - perfect for "pre run" setup!
 
     ```
-    👉 cp pre-run/pre-run-example pre-run/pre-run && ./docker-up -d=true
+    👉 ./docker-set -p example
+    👉 ./docker-up -d=true
     ```
 
 - `pre-run-wrapper`
@@ -141,9 +240,9 @@ Each time you change your pre-run script, you may need to force the docker conta
 
 - **Importing from elsewhere:**
 
-    If you already have scripts that setup your server, use them by copying the contents into a file and name it `script-my_server`.
-    Make it executable.
-    Ensure that you are logging the output to a file of your choice - eg. `scripts/script-log-my_server.log`. You can reference the script-example to see how we log to both file and output.
+    If you already have scripts that setup your server, use them by copying the contents into a folder and name it `server-my_server`.
+    Make your scripts executable.
+    Ensure that you are logging the output to a file of your choice - eg. `scripts/server-my_server/script-log-my_server.log`. You can reference the script-example to see how we log to both file and output.
 
     Read more in the running scipts section.
 
@@ -159,7 +258,7 @@ Each time you change your pre-run script, you may need to force the docker conta
     ./docker-script -t <template> -n <server-name>
     ```
 
-    This will create a new folder `scripts/script-<your-servername>` with init scripts based on the template-main and other templates scripts we prrovide. You can edit these as needed.
+    This will create a new folder `scripts/server-<your-servername>` with init scripts based on the template-main and other templates scripts we provide. You can edit these as needed.
 
     ---
 
@@ -210,24 +309,28 @@ Each time you change your pre-run script, you may need to force the docker conta
 
 ## Running Scripts
 
-To run your scripts, first make sure you start the docker container:
+To run your scripts, simply use the main command and guided prompts.
 
 `./docker-up`
 
-Next, make sure you have put your script into the `scripts` folder with prefix `script` (to avoid version control issues we ignore every file in here that starts with script- and we allow script-example).
+The easiest thing to do is follow the guided prompts to create or run scripts, because it will ensure proper naming conventions and logging when creating them - and it will avoid having to type the name of your scripts through switches, and let you choose number choices from a list.
 
-```
-- scripts/
-    - script-my_server_dev
-    - script-my_server_prod
-```
+For doing things manually:
 
-Each script should log the output to corresponding log file in your scripts folder (or wherever you want really) eg. `script-my_server_dev.log` or `script-log-my_server_dev.log` to avoid the naming completion being too similar to the script itself.
+- Make sure you have put your server-scripts into the `scripts/server-<server-name>` folder - notice the prefix `server` (to avoid version control issues we ignore every folder in here that starts with `server-`).
 
+    ```
+    - scripts/
+        - server-my_server_dev
+        - server-my_server_prod
+    ```
+- Run your scripts directly (remembering to `./docker-down` and `./docker-up` again for fresh start):
 
-```
-./docker-run -n my_server_dev
-```
+    ```
+    # Syntax: ./docker-run -n <server-name>
+
+    👉 ./docker-run -n my_server_dev
+    ```
 
 [↑ Contents](#contents)
 
