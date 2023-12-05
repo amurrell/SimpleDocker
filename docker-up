@@ -57,51 +57,76 @@ if [ $status -eq 0 ]; then
     echo  "./docker-ssh" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
     printf "\n"
 
-    # prompt if they want to run ./docker-ssh
-    read -p "Do you want to run ./docker-ssh now? (y/n) " -n 1 -r
+    # prompt the user to select a post action
+    printf "\n============ POST-ACTION: \n"
+    printf "1. Run a script\n"
+    printf "2. SSH\n"
+    printf "3. View logs\n"
+    printf "4. Create a script\n"
+    read -p "Enter the number of the post action you want to perform (ctrl+d to exit): " -r
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        ./docker-ssh
-    else
-        printf "\n============ VIEW PRE-RUN LOG: \n"
-        echo "📋 ./docker-log" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
-        printf "\n"
-        # prompt if they want to run cat pre-run/pre-run.log
-        read -p "Do you want to view the log now? (y/n) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]
-        then
-            ./docker-log
-        else
-            # do you want to run a script?
-            printf "\n============ RUN SERVER: \n"
-            echo "🏃‍♀️ ./docker-run -n <server-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
-            read -p "Do you want to run one now? (y/n) " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]
-            then
-                # prompt for script name
-                read -p "Enter the server name: " -r
-                echo
-                ./docker-run -n $REPLY
-            else
-                # do you want to run docker-script -n <server-name> now?
-                printf "\n============ CREATE SCRIPT: \n"
-                echo "🔨 ./docker-script -n <server-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
-                read -p "Do you want to create one now? (y/n) " -n 1 -r
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]
-                then
-                    # prompt for script name
-                    read -p "Enter the server name: " -r
+
+    if [[ $REPLY =~ ^[1-4]$ ]]; then
+        case $REPLY in
+            1)
+                # Scan the /scripts/ directory for folders starting with "server-"
+                # and prompt the user to select one
+                # so that a scripts/server-<server-name> would be an option 1. <server-name>
+                # and then run ./docker-run -n <server-name>
+                SCRIPTS=$(find scripts/ -maxdepth 1 -type d -name "server-*" -exec basename {} \;)
+                SCRIPTS_ARRAY=($SCRIPTS)
+                SCRIPTS_ARRAY_LENGTH=${#SCRIPTS_ARRAY[@]}
+                if [ $SCRIPTS_ARRAY_LENGTH -gt 0 ]; then
+                    printf "\n============ SELECT SCRIPT: \n"
+                    for (( i=0; i<${SCRIPTS_ARRAY_LENGTH}; i++ ));
+                    do
+                        printf "$((i+1)). ${SCRIPTS_ARRAY[$i]}\n"
+                    done
+                    printf "\n"
+                    read -p "Enter the number of the script you want to run: " -r
                     echo
-                    ./docker-script -n $REPLY
+                    if [[ $REPLY =~ ^[0-9]+$ ]]
+                    then
+                        if [ $REPLY -gt 0 ] && [ $REPLY -le $SCRIPTS_ARRAY_LENGTH ]; then
+                            # GET SCRIPT NAME FROM ARRAY
+                            INDEX=$((REPLY-1))
+                            SCRIPT_NAME=${SCRIPTS_ARRAY[$INDEX]}
+                            printf "============= 🏃‍♀️ Running script: $SCRIPT_NAME\n"
+                            # remove the "server-" prefix
+                            SCRIPT_NAME=${SCRIPT_NAME:7}
+                            ./docker-run -n $SCRIPT_NAME
+                        else
+                            printf "============= ❌ Invalid number.\n"
+                        fi
+                    else
+                        printf "============= ❌ Invalid number.\n"
+                    fi
                 else
-                    printf "============= 🤷‍♂️ Ok, bye!\n"
+                    printf "============= ❌ No scripts found.\n"
                 fi
-            fi
-        fi
+                ;;
+            2)
+                printf "============= 👉 SSH: "
+                echo  "./docker-ssh" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+                printf "\n"
+                ./docker-ssh
+                ;;
+            3)
+                printf "============ VIEW LOGS: \n"
+                echo "� ./docker-log" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+                printf "\n"
+                ./docker-log
+                ;;
+            4)
+                printf "============ CREATE SCRIPT: \n"
+                echo "🔨 ./docker-script -n <script-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+                read -p "Enter the script name: " -r
+                echo
+                ./docker-script -n $REPLY
+                ;;
+        esac
+    else
+        printf "============= ❌ Invalid number.\n"
     fi
 else
     printf "============= ❌ Docker failed to build.\n"
