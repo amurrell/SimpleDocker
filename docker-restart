@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -e
+
+# check docker-up and docker-down exist in this directory, and if so, run them ./docker-down && ./docker-up
+if [ -f ./docker-down ] && [ -f ./docker-up ]; then
+
+    # we need to check if the container is running, and if not, ./docker-up only
+    if [ ! "$(docker ps -q -f name=dockerlocal3090-web-1)" ]; then
+        # run ./docker-up only, nothing is running to stop
+        printf "============ Script: ⏳ Starting... (was not previously running)\n"
+        ./docker-up
+    else 
+        # run ./docker-down && ./docker-up
+        printf "============ Script: ⏳ Restarting...\n"
+        ./docker-down && ./docker-up
+    fi
+
+else
+   printf "============ Script: ❌ Restart Aborted - docker-up and docker-down not found\n"
+fi

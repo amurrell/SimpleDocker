@@ -4,6 +4,7 @@ pre-run/pre-run*
 !pre-run/pre-run-default
 !pre-run/pre-run-example
 !pre-run/pre-run-wrapper
+!pre-run/pre-run-aws-example
 scripts/server*
 override-ubuntu-version
 Dockerfile-Computed

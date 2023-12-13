@@ -119,10 +119,56 @@ if [ $status -eq 0 ]; then
                 ;;
             4)
                 printf "============ CREATE SCRIPT: \n"
-                echo "🔨 ./docker-script -n <script-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
-                read -p "Enter the script name: " -r
-                echo
-                ./docker-script -n $REPLY
+                # ask if we need to use a custom template
+                printf "============ Would you like to use a custom template? (y/n)\n"
+                read -r USE_CUSTOM_TEMPLATE
+
+                # if using custom template, the command is ./docker-script -n <script-name> -t <template-name>
+                if [ "$USE_CUSTOM_TEMPLATE" = "y" ]; then
+                    # Scan the /scripts/templates directory for files starting with "template-"
+                    # and prompt the user to select one
+                    # so that a scripts/templates/template-<template-name> would be an option 1. <template-name>
+                    # and then run ./docker-script -n <script-name> -t <template-name>
+                    TEMPLATES=$(find scripts/templates/ -maxdepth 1 -type f -name "template-*" -exec basename {} \;)
+                    TEMPLATES_ARRAY=($TEMPLATES)
+                    TEMPLATES_ARRAY_LENGTH=${#TEMPLATES_ARRAY[@]}
+                    if [ $TEMPLATES_ARRAY_LENGTH -gt 0 ]; then
+                        printf "\n============ SELECT TEMPLATE: \n"
+                        for (( i=0; i<${TEMPLATES_ARRAY_LENGTH}; i++ ));
+                        do
+                            printf "$((i+1)). ${TEMPLATES_ARRAY[$i]}\n"
+                        done
+                        printf "\n"
+                        read -p "Enter the number of the template you want to use: " -r
+                        echo
+                        if [[ $REPLY =~ ^[0-9]+$ ]]
+                        then
+                            if [ $REPLY -gt 0 ] && [ $REPLY -le $TEMPLATES_ARRAY_LENGTH ]; then
+                                # GET TEMPLATE NAME FROM ARRAY
+                                INDEX=$((REPLY-1))
+                                TEMPLATE_NAME=${TEMPLATES_ARRAY[$INDEX]}
+                                printf "============= 🏃‍♀️ Creating script with template: $TEMPLATE_NAME\n"
+                                # remove the "template-" prefix
+                                TEMPLATE_NAME=${TEMPLATE_NAME:9}
+                                read -p "Enter the script name: " -r
+                                echo
+                                ./docker-script -n $REPLY -t $TEMPLATE_NAME
+                            else
+                                printf "============= ❌ Invalid number.\n"
+                            fi
+                        else
+                            printf "============= ❌ Invalid number.\n"
+                        fi
+                    else
+                        printf "============= ❌ No templates found.\n"
+                    fi
+                else
+                    # else the command is ./docker-script -n <script-name>
+                    echo "🔨 ./docker-script -n <script-name>" | sed -e "s/.*/"$'\e[32m'"&"$'\e[m'"/"
+                    read -p "Enter the script name: " -r
+                    echo
+                    ./docker-script -n $REPLY
+                fi
                 ;;
         esac
     else

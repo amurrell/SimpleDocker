@@ -9,7 +9,7 @@ printf "============ Script: Redis SimpleDocker Example\n"
 # Vars
 
 # Change this path to your own config
-REDIS_CONF=$(</var/www/simple-docker/templates/redis-example.conf)
+REDIS_CONF=$(</var/www/simple-docker/scripts/templates/redis-example.conf)
 REDIS_CONF_PATH='/etc/redis/redis.conf'
 
 ## Install Redis Server
